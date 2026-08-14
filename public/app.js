@@ -1,10 +1,21 @@
 /*************************************************
  * SIGURE
- * Sistema Integral de Gestión de Unidades de
- * Respuesta a Emergencias
+ * Sistema Integral de Gestión de Unidades
+ * de Respuesta a Emergencias
  *
+ * FRONTEND CLOUDFLARE
  * Archivo: public/app.js
  *************************************************/
+
+
+// =========================================================
+// CONFIGURACIÓN FRONTEND
+// =========================================================
+
+// Debe coincidir con APP.CONTROL_TYPE del backend.
+// Si Apps Script utiliza otro texto para la visoría,
+// solamente habrá que modificar esta constante.
+const VISORIA_CONTROL_TYPE = 'VISORIA';
 
 
 // =========================================================
@@ -23,10 +34,13 @@ const state = {
 // INICIO
 // =========================================================
 
-document.addEventListener('DOMContentLoaded', function () {
-  bindBaseEvents();
-  restoreSession();
-});
+document.addEventListener(
+  'DOMContentLoaded',
+  function () {
+    bindBaseEvents();
+    restoreSession();
+  }
+);
 
 
 // =========================================================
@@ -37,6 +51,7 @@ function $(selector) {
   return document.querySelector(selector);
 }
 
+
 function $$(selector) {
   return Array.from(
     document.querySelectorAll(selector)
@@ -45,12 +60,10 @@ function $$(selector) {
 
 
 function esc(value) {
-
   return String(value ?? '')
     .replace(
       /[&<>"']/g,
       function (character) {
-
         const map = {
           '&': '&amp;',
           '<': '&lt;',
@@ -60,63 +73,85 @@ function esc(value) {
         };
 
         return map[character];
-
       }
     );
-
 }
 
 
 function fmtDate(value) {
-
   if (!value) {
     return '-';
   }
 
-
   const date =
     new Date(value);
-
 
   if (
     Number.isNaN(
       date.getTime()
     )
   ) {
-
     return String(value);
-
   }
-
 
   return date.toLocaleString(
     'es-AR'
   );
+}
 
+
+function fmtDateInput(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '';
+  }
+
+  return date
+    .toISOString()
+    .slice(0, 10);
 }
 
 
 function asBool(value) {
-
   return (
     value === true ||
-    String(value).toLowerCase() === 'true' ||
-    String(value).toUpperCase() === 'VERDADERO'
+    String(value)
+      .toLowerCase() ===
+      'true' ||
+    String(value)
+      .toUpperCase() ===
+      'VERDADERO'
   );
+}
 
+
+function numberValue(value) {
+  const number =
+    Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
 }
 
 
 function statusBadge(status) {
-
   const normalized =
     String(status || '')
       .toUpperCase();
 
-
   let css =
     'warn';
-
 
   if (
     [
@@ -125,15 +160,13 @@ function statusBadge(status) {
       'ACTIVO',
       'ACTIVA',
       'ABIERTO',
-      'ABIERTA'
+      'ABIERTA',
+      'CONFORME'
     ].includes(normalized)
   ) {
-
     css =
       'ok';
-
   }
-
 
   if (
     [
@@ -142,95 +175,76 @@ function statusBadge(status) {
       'INACTIVO',
       'INACTIVA',
       'CERRADO',
-      'CERRADA'
+      'CERRADA',
+      'NO_CONFORME',
+      'CRITICO',
+      'CRÍTICO'
     ].includes(normalized)
   ) {
-
     css =
       'danger';
-
   }
-
 
   if (
     normalized ===
-    'EN_REPOSICION'
+      'EN_REPOSICION' ||
+    normalized ===
+      'EN REPOSICIÓN'
   ) {
-
     css =
       'info';
-
   }
-
 
   return `
     <span class="status ${css}">
       ${esc(status || '-')}
     </span>
   `;
-
 }
 
 
 function showToast(message) {
-
   const container =
     $('#toast');
 
-
   if (!container) {
-
     alert(message);
-
     return;
-
   }
-
 
   const toast =
     document.createElement(
       'div'
     );
 
-
   toast.className =
     'toast';
 
-
   toast.textContent =
     message;
-
 
   container.appendChild(
     toast
   );
 
-
   setTimeout(
     function () {
-
       toast.remove();
-
     },
     3500
   );
-
 }
 
 
 function showLoginMessage(message) {
-
   const element =
     $('#loginMessage');
-
 
   if (!element) {
     return;
   }
 
-
   if (!message) {
-
     element.classList.add(
       'hidden'
     );
@@ -239,94 +253,285 @@ function showLoginMessage(message) {
       '';
 
     return;
-
   }
-
 
   element.textContent =
     message;
 
-
   element.classList.remove(
     'hidden'
   );
-
 }
 
 
 function openModal(html) {
-
   const modal =
     $('#modal');
 
   const body =
     $('#modalBody');
-
 
   if (
     !modal ||
     !body
   ) {
-
     return;
-
   }
-
 
   body.innerHTML =
     html;
 
-
   modal.classList.remove(
     'hidden'
   );
-
 }
 
 
 function closeModal() {
-
   const modal =
     $('#modal');
 
   const body =
     $('#modalBody');
 
-
   if (modal) {
-
     modal.classList.add(
       'hidden'
     );
-
   }
-
 
   if (body) {
-
     body.innerHTML =
       '';
+  }
+}
 
+
+function extractArray(
+  response,
+  possibleKeys = []
+) {
+  if (
+    Array.isArray(response)
+  ) {
+    return response;
   }
 
+  if (!response) {
+    return [];
+  }
+
+  for (
+    const key of possibleKeys
+  ) {
+    if (
+      Array.isArray(
+        response[key]
+      )
+    ) {
+      return response[key];
+    }
+  }
+
+  return [];
+}
+
+
+// =========================================================
+// NORMALIZACIÓN DE INSUMOS
+// =========================================================
+
+function normalizeStockItem(item) {
+  return {
+    idInsumo:
+      item.idInsumo ||
+      item.insumoId ||
+      '',
+
+    codigo:
+      item.codigo ||
+      item.codigoInsumo ||
+      '',
+
+    nombre:
+      item.nombreInsumo ||
+      item.insumo ||
+      item.nombre ||
+      item.codigoInsumo ||
+      'Insumo',
+
+    cantidadActual:
+      numberValue(
+        item.cantidadActual ??
+        item.cantidad ??
+        item.stock ??
+        0
+      ),
+
+    cantidadEsperada:
+      numberValue(
+        item.cantidadRequerida ??
+        item.cantidadEsperada ??
+        item.stockEsperado ??
+        0
+      ),
+
+    cantidadMinima:
+      numberValue(
+        item.cantidadMinima ??
+        0
+      ),
+
+    idLote:
+      item.idLote ||
+      '',
+
+    numeroLote:
+      item.numeroLote ||
+      item.lote ||
+      '',
+
+    fechaVencimiento:
+      item.fechaVencimiento ||
+      item.vencimiento ||
+      ''
+  };
+}
+
+
+function normalizeTemplateItem(item) {
+  return {
+    idInsumo:
+      item.idInsumo ||
+      '',
+
+    codigo:
+      item.codigo ||
+      item.codigoInsumo ||
+      '',
+
+    nombre:
+      item.nombreInsumo ||
+      item.nombre ||
+      item.insumo ||
+      item.codigo ||
+      'Insumo',
+
+    cantidadEsperada:
+      numberValue(
+        item.cantidadRequerida ??
+        item.cantidadEsperada ??
+        0
+      ),
+
+    cantidadMinima:
+      numberValue(
+        item.cantidadMinima ??
+        0
+      ),
+
+    compartimiento:
+      item.compartimiento ||
+      '',
+
+    esCritico:
+      asBool(
+        item.esCritico
+      )
+  };
+}
+
+
+function mergeTemplateAndStock(
+  stock,
+  templateItems
+) {
+  const map =
+    new Map();
+
+  templateItems.forEach(
+    function (item) {
+      const normalized =
+        normalizeTemplateItem(
+          item
+        );
+
+      if (
+        normalized.idInsumo
+      ) {
+        map.set(
+          normalized.idInsumo,
+          {
+            ...normalized,
+            cantidadActual: 0,
+            idLote: '',
+            numeroLote: '',
+            fechaVencimiento: ''
+          }
+        );
+      }
+    }
+  );
+
+  stock.forEach(
+    function (item) {
+      const normalized =
+        normalizeStockItem(
+          item
+        );
+
+      if (
+        normalized.idInsumo &&
+        map.has(
+          normalized.idInsumo
+        )
+      ) {
+        const previous =
+          map.get(
+            normalized.idInsumo
+          );
+
+        map.set(
+          normalized.idInsumo,
+          {
+            ...previous,
+            ...normalized,
+
+            cantidadEsperada:
+              previous.cantidadEsperada ||
+              normalized.cantidadEsperada
+          }
+        );
+
+      } else if (
+        normalized.idInsumo
+      ) {
+        map.set(
+          normalized.idInsumo,
+          normalized
+        );
+      }
+    }
+  );
+
+  return Array.from(
+    map.values()
+  );
 }
 
 
 // =========================================================
 // API
-// CLOUDFLARE -> APPS SCRIPT
 // =========================================================
 
 async function apiCall(
   action,
   args = []
 ) {
-
   const response =
     await fetch(
       '/api',
       {
-
         method:
           'POST',
 
@@ -345,88 +550,64 @@ async function apiCall(
                 ? args
                 : []
           })
-
       }
     );
 
-
   let payload;
 
-
   try {
-
     payload =
       await response.json();
 
   } catch (error) {
-
     throw new Error(
       'La API de SIGURE devolvió una respuesta inválida.'
     );
-
   }
 
-
   if (!response.ok) {
-
     throw new Error(
       payload.error ||
       `Error HTTP ${response.status}`
     );
-
   }
 
-
   if (
-    payload.ok !==
-    true
+    payload.ok !== true
   ) {
-
     throw new Error(
       payload.error ||
       'Error de comunicación con SIGURE.'
     );
-
   }
-
 
   const apiResult =
     payload.result;
 
-
   if (!apiResult) {
-
     throw new Error(
       'SIGURE no devolvió resultado.'
     );
-
   }
 
-
   if (
-    apiResult.ok !==
-    true
+    apiResult.ok !== true
   ) {
-
     throw new Error(
       apiResult.error ||
       'La operación no pudo completarse.'
     );
-
   }
 
-
   return apiResult.data;
-
 }
 
 
 // =========================================================
-// EVENTOS GENERALES
+// EVENTOS BASE
 // =========================================================
 
 function bindBaseEvents() {
-
   $('#loginForm')
     ?.addEventListener(
       'submit',
@@ -438,15 +619,12 @@ function bindBaseEvents() {
     ?.addEventListener(
       'click',
       function () {
-
         const input =
           $('#loginPass');
-
 
         if (!input) {
           return;
         }
-
 
         input.type =
           input.type ===
@@ -454,13 +632,11 @@ function bindBaseEvents() {
             ? 'text'
             : 'password';
 
-
         this.textContent =
           input.type ===
           'password'
             ? 'Ver'
             : 'Ocultar';
-
       }
     );
 
@@ -476,11 +652,9 @@ function bindBaseEvents() {
     ?.addEventListener(
       'click',
       function () {
-
         renderView(
           state.currentView
         );
-
       }
     );
 
@@ -489,13 +663,11 @@ function bindBaseEvents() {
     ?.addEventListener(
       'click',
       function () {
-
         $('.sidebar')
           ?.classList
           .toggle(
             'open'
           );
-
       }
     );
 
@@ -517,28 +689,22 @@ function bindBaseEvents() {
   $$('#nav [data-view]')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             $('.sidebar')
               ?.classList
               .remove(
                 'open'
               );
 
-
             renderView(
               button.dataset.view
             );
-
           }
         );
-
       }
     );
-
 }
 
 
@@ -547,74 +713,55 @@ function bindBaseEvents() {
 // =========================================================
 
 async function onLogin(event) {
-
   event.preventDefault();
 
-
-  showLoginMessage(
-    ''
-  );
-
+  showLoginMessage('');
 
   const button =
     $('#loginButton');
 
-
   const userInput =
     $('#loginUser');
 
-
   const passwordInput =
     $('#loginPass');
-
 
   if (
     !button ||
     !userInput ||
     !passwordInput
   ) {
-
     showLoginMessage(
       'No se pudo inicializar el formulario.'
     );
 
     return;
-
   }
-
 
   const usuario =
     userInput.value.trim();
 
-
   const password =
     passwordInput.value;
-
 
   if (
     !usuario ||
     !password
   ) {
-
     showLoginMessage(
       'Ingrese usuario y contraseña.'
     );
 
     return;
-
   }
-
 
   button.disabled =
     true;
 
-
   button.textContent =
     'Ingresando...';
 
-
   try {
-
     const result =
       await apiCall(
         'login',
@@ -624,57 +771,42 @@ async function onLogin(event) {
         ]
       );
 
-
     if (
       !result ||
       !result.token ||
       !result.user
     ) {
-
       throw new Error(
         'La sesión recibida desde SIGURE es inválida.'
       );
-
     }
-
 
     state.token =
       result.token;
 
-
     state.user =
       result.user;
 
-
     saveSession();
 
-
     enterApp();
-
 
     await renderView(
       'dashboard'
     );
 
-
   } catch (error) {
-
     showLoginMessage(
       error.message
     );
 
-
   } finally {
-
     button.disabled =
       false;
 
-
     button.textContent =
       'Ingresar a SIGURE';
-
   }
-
 }
 
 
@@ -683,36 +815,27 @@ async function onLogin(event) {
 // =========================================================
 
 async function onLogout() {
-
   try {
-
     if (
       state.token
     ) {
-
       await apiCall(
         'logout',
         [
           state.token
         ]
       );
-
     }
 
   } catch (error) {
-
     console.warn(
       error
     );
-
   }
-
 
   clearSession();
 
-
   window.location.reload();
-
 }
 
 
@@ -721,12 +844,10 @@ async function onLogout() {
 // =========================================================
 
 function saveSession() {
-
   sessionStorage.setItem(
     'sigure_token',
     state.token
   );
-
 
   sessionStorage.setItem(
     'sigure_user',
@@ -734,73 +855,56 @@ function saveSession() {
       state.user
     )
   );
-
 }
 
 
 function clearSession() {
-
   state.token =
     null;
-
 
   state.user =
     null;
 
-
   state.adminData =
     null;
-
 
   sessionStorage.removeItem(
     'sigure_token'
   );
 
-
   sessionStorage.removeItem(
     'sigure_user'
   );
-
 }
 
 
 async function restoreSession() {
-
   const token =
     sessionStorage.getItem(
       'sigure_token'
     );
-
 
   const rawUser =
     sessionStorage.getItem(
       'sigure_user'
     );
 
-
   if (
     !token ||
     !rawUser
   ) {
-
     showLogin();
-
     return;
-
   }
 
-
   try {
-
     state.token =
       token;
-
 
     state.user =
       JSON.parse(
         rawUser
       );
-
 
     await apiCall(
       'getDashboard',
@@ -809,53 +913,40 @@ async function restoreSession() {
       ]
     );
 
-
     enterApp();
-
 
     await renderView(
       'dashboard'
     );
 
-
   } catch (error) {
-
     clearSession();
-
-
     showLogin();
-
   }
-
 }
 
 
 function showLogin() {
-
   $('#appView')
     ?.classList
     .add(
       'hidden'
     );
 
-
   $('#loginView')
     ?.classList
     .remove(
       'hidden'
     );
-
 }
 
 
 function enterApp() {
-
   $('#loginView')
     ?.classList
     .add(
       'hidden'
     );
-
 
   $('#appView')
     ?.classList
@@ -863,79 +954,54 @@ function enterApp() {
       'hidden'
     );
 
-
   if (
     !state.user
   ) {
-
     return;
-
   }
-
-
-  const sessionName =
-    $('#sessionName');
-
-
-  const sidebarRole =
-    $('#sidebarRole');
-
-
-  const sessionService =
-    $('#sessionService');
-
 
   if (
-    sessionName
+    $('#sessionName')
   ) {
-
-    sessionName.textContent =
-      state.user.nombre ||
-      state.user.usuario ||
-      'Usuario';
-
+    $('#sessionName')
+      .textContent =
+        state.user.nombre ||
+        state.user.usuario ||
+        'Usuario';
   }
-
 
   if (
-    sidebarRole
+    $('#sidebarRole')
   ) {
-
-    sidebarRole.textContent =
-      state.user.rol ===
-      'CALIDAD'
-        ? 'Administración institucional'
-        : 'Gestión del servicio';
-
+    $('#sidebarRole')
+      .textContent =
+        state.user.rol ===
+        'CALIDAD'
+          ? 'Administración institucional'
+          : 'Gestión del servicio';
   }
-
 
   if (
-    sessionService
+    $('#sessionService')
   ) {
-
-    sessionService.textContent =
-      state.user.rol ===
-      'CALIDAD'
-        ? 'Área de Calidad'
-        : 'Usuario de servicio';
-
+    $('#sessionService')
+      .textContent =
+        state.user.rol ===
+        'CALIDAD'
+          ? 'Área de Calidad'
+          : 'Usuario de servicio';
   }
-
 
   $$('.admin-only')
     .forEach(
       function (element) {
-
         element.classList.toggle(
           'hidden',
           state.user.rol !==
             'CALIDAD'
         );
-
       }
     );
-
 }
 
 
@@ -944,40 +1010,31 @@ function enterApp() {
 // =========================================================
 
 async function renderView(view) {
-
   if (
     view ===
       'admin' &&
     state.user?.rol !==
       'CALIDAD'
   ) {
-
     view =
       'dashboard';
-
   }
-
 
   state.currentView =
     view;
 
-
   $$('#nav [data-view]')
     .forEach(
       function (button) {
-
         button.classList.toggle(
           'active',
           button.dataset.view ===
             view
         );
-
       }
     );
 
-
   const titles = {
-
     dashboard: [
       'Panel',
       'Resumen operativo de SIGURE'
@@ -1002,95 +1059,76 @@ async function renderView(view) {
       'Administración',
       'Configuración institucional'
     ]
-
   };
 
+  const safeTitle =
+    titles[view] ||
+    titles.dashboard;
 
-  $('#viewTitle').textContent =
-    titles[view][0];
+  $('#viewTitle')
+    .textContent =
+      safeTitle[0];
 
+  $('#viewSubtitle')
+    .textContent =
+      safeTitle[1];
 
-  $('#viewSubtitle').textContent =
-    titles[view][1];
-
-
-  $('#content').innerHTML =
-    '<div class="loading-card">Cargando información...</div>';
-
+  $('#content')
+    .innerHTML =
+      '<div class="loading-card">Cargando información...</div>';
 
   try {
-
     if (
       view ===
       'dashboard'
     ) {
-
       return await renderDashboard();
-
     }
-
 
     if (
       view ===
       'units'
     ) {
-
       return await renderUnits();
-
     }
-
 
     if (
       view ===
       'alerts'
     ) {
-
       return await renderAlerts();
-
     }
-
 
     if (
       view ===
       'feedback'
     ) {
-
       return await renderFeedback();
-
     }
-
 
     if (
       view ===
       'admin'
     ) {
-
       return await renderAdmin();
-
     }
 
-
   } catch (error) {
+    $('#content')
+      .innerHTML = `
+        <div class="empty-state">
 
-    $('#content').innerHTML = `
+          <strong>
+            No se pudo cargar la información.
+          </strong>
 
-      <div class="empty-state">
+          <p class="muted">
+            ${esc(error.message)}
+          </p>
 
-        <strong>
-          No se pudo cargar la información.
-        </strong>
-
-        <p class="muted">
-          ${esc(
-            error.message
-          )}
-        </p>
-
-      </div>
-    `;
-
+        </div>
+      `;
   }
-
 }
 
 
@@ -1102,9 +1140,7 @@ function metricCard(
   label,
   value
 ) {
-
   return `
-
     <div class="card">
 
       <div class="metric-label">
@@ -1117,12 +1153,10 @@ function metricCard(
 
     </div>
   `;
-
 }
 
 
 async function renderDashboard() {
-
   const dashboard =
     await apiCall(
       'getDashboard',
@@ -1131,16 +1165,13 @@ async function renderDashboard() {
       ]
     );
 
-
   const totals =
     dashboard?.totals ||
     {};
 
-
   const byStatus =
     dashboard?.byStatus ||
     {};
-
 
   const units =
     Array.isArray(
@@ -1149,7 +1180,6 @@ async function renderDashboard() {
       ? dashboard.units
       : [];
 
-
   const alerts =
     Array.isArray(
       dashboard?.alerts
@@ -1157,87 +1187,81 @@ async function renderDashboard() {
       ? dashboard.alerts
       : [];
 
+  $('#content')
+    .innerHTML = `
 
-  $('#content').innerHTML = `
+      <div class="grid metric-grid">
 
-    <div class="grid metric-grid">
+        ${metricCard(
+          'Unidades',
+          totals.units || 0
+        )}
 
-      ${metricCard(
-        'Unidades',
-        totals.units || 0
-      )}
+        ${metricCard(
+          'Operativas',
+          byStatus.OPERATIVA || 0
+        )}
 
-      ${metricCard(
-        'Operativas',
-        byStatus.OPERATIVA || 0
-      )}
+        ${metricCard(
+          'En reposición',
+          byStatus.EN_REPOSICION || 0
+        )}
 
-      ${metricCard(
-        'En reposición',
-        byStatus.EN_REPOSICION || 0
-      )}
+        ${metricCard(
+          'No operativas',
+          byStatus.NO_OPERATIVA || 0
+        )}
 
-      ${metricCard(
-        'No operativas',
-        byStatus.NO_OPERATIVA || 0
-      )}
+        ${metricCard(
+          'Alertas abiertas',
+          totals.alerts || 0
+        )}
 
-      ${metricCard(
-        'Alertas abiertas',
-        totals.alerts || 0
-      )}
+        ${metricCard(
+          'Feedback pendiente',
+          totals.feedbackPending || 0
+        )}
 
-      ${metricCard(
-        'Feedback pendiente',
-        totals.feedbackPending || 0
-      )}
-
-    </div>
-
-
-    <div class="section-title">
-
-      <h3>
-        Estado de unidades
-      </h3>
-
-    </div>
+      </div>
 
 
-    <div class="grid units-grid">
-
-      ${
-        units.length
-          ? units
-              .map(
-                unitCard
-              )
-              .join('')
-          : `
-            <div class="empty-state">
-              No hay unidades registradas.
-            </div>
-          `
-      }
-
-    </div>
+      <div class="section-title">
+        <h3>
+          Estado de unidades
+        </h3>
+      </div>
 
 
-    <div class="section-title">
+      <div class="grid units-grid">
 
-      <h3>
-        Alertas prioritarias
-      </h3>
+        ${
+          units.length
+            ? units
+                .map(
+                  unitCard
+                )
+                .join('')
+            : `
+              <div class="empty-state">
+                No hay unidades registradas.
+              </div>
+            `
+        }
 
-    </div>
+      </div>
 
 
-    ${alertsTable(alerts)}
-  `;
+      <div class="section-title">
+        <h3>
+          Alertas prioritarias
+        </h3>
+      </div>
 
+
+      ${alertsTable(alerts)}
+    `;
 
   bindUnitOpenButtons();
-
 }
 
 
@@ -1246,7 +1270,6 @@ async function renderDashboard() {
 // =========================================================
 
 async function renderUnits() {
-
   const units =
     await apiCall(
       'listMyUnits',
@@ -1255,39 +1278,35 @@ async function renderUnits() {
       ]
     );
 
+  $('#content')
+    .innerHTML = `
 
-  $('#content').innerHTML = `
+      <div class="grid units-grid">
 
-    <div class="grid units-grid">
+        ${
+          Array.isArray(units) &&
+          units.length
+            ? units
+                .map(
+                  unitCard
+                )
+                .join('')
+            : `
+              <div class="empty-state">
+                No hay unidades asignadas.
+              </div>
+            `
+        }
 
-      ${
-        Array.isArray(units) &&
-        units.length
-          ? units
-              .map(
-                unitCard
-              )
-              .join('')
-          : `
-            <div class="empty-state">
-              No hay unidades asignadas.
-            </div>
-          `
-      }
-
-    </div>
-  `;
-
+      </div>
+    `;
 
   bindUnitOpenButtons();
-
 }
 
 
 function unitCard(unit) {
-
   return `
-
     <article class="card unit-card">
 
       <div class="unit-head">
@@ -1295,21 +1314,12 @@ function unitCard(unit) {
         <div>
 
           <div class="unit-code">
-
-            ${esc(
-              unit.codigo
-            )}
-
+            ${esc(unit.codigo)}
             ·
-
-            ${esc(
-              unit.nombre
-            )}
-
+            ${esc(unit.nombre)}
           </div>
 
         </div>
-
 
         ${statusBadge(
           unit.estado
@@ -1338,12 +1348,10 @@ function unitCard(unit) {
 
 
       <div>
-
         ${esc(
           unit.ubicacion ||
           'Sin ubicación informada'
         )}
-
       </div>
 
 
@@ -1352,21 +1360,15 @@ function unitCard(unit) {
         Próxima acción:
 
         <strong>
-
           ${fmtDate(
             unit.proximaAccion
           )}
-
         </strong>
 
       </div>
 
 
-      <div
-        style="
-          margin-top:12px;
-        "
-      >
+      <div style="margin-top:12px">
 
         <button
           type="button"
@@ -1375,16 +1377,13 @@ function unitCard(unit) {
             unit.idUnidad
           )}"
         >
-
           Abrir unidad
-
         </button>
 
       </div>
 
     </article>
   `;
-
 }
 
 
@@ -1393,227 +1392,195 @@ function unitCard(unit) {
 // =========================================================
 
 function bindUnitOpenButtons() {
-
   $$('.open-unit')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             openUnitDetail(
               button.dataset.unitId
             );
-
           }
         );
-
       }
     );
-
 }
 
 
-async function openUnitDetail(unitId) {
-
+async function openUnitDetail(
+  unitId
+) {
   if (
     !unitId
   ) {
-
     showToast(
       'No se pudo identificar la unidad.'
     );
 
     return;
-
   }
 
-
   openModal(`
-
     <div class="loading-card">
       Cargando unidad...
     </div>
   `);
 
-
   try {
+    const unit =
+      await apiCall(
+        'getUnit',
+        [
+          state.token,
+          unitId
+        ]
+      );
 
-    const results =
-      await Promise.all([
+    const promises = [
+      apiCall(
+        'getUnitStock',
+        [
+          state.token,
+          unitId
+        ]
+      ),
 
+      apiCall(
+        'getUnitTimeline',
+        [
+          state.token,
+          unitId
+        ]
+      )
+    ];
+
+    if (
+      unit.idPlantilla
+    ) {
+      promises.push(
         apiCall(
-          'getUnit',
+          'getTemplateDetail',
           [
             state.token,
-            unitId
-          ]
-        ),
-
-        apiCall(
-          'getUnitStock',
-          [
-            state.token,
-            unitId
-          ]
-        ),
-
-        apiCall(
-          'getUnitTimeline',
-          [
-            state.token,
-            unitId
+            unit.idPlantilla
           ]
         )
+      );
+    }
 
-      ]);
-
-
-    const unit =
-      results[0] ||
-      {};
-
-
-    const stockResponse =
-      results[1];
-
-
-    const timelineResponse =
-      results[2];
-
+    const results =
+      await Promise.all(
+        promises
+      );
 
     const stock =
-      Array.isArray(
-        stockResponse
-      )
-        ? stockResponse
-        : Array.isArray(
-            stockResponse?.stock
-          )
-          ? stockResponse.stock
-          : Array.isArray(
-              stockResponse?.items
-            )
-            ? stockResponse.items
-            : [];
-
+      extractArray(
+        results[0],
+        [
+          'stock',
+          'items',
+          'rows'
+        ]
+      );
 
     const timeline =
-      Array.isArray(
-        timelineResponse
-      )
-        ? timelineResponse
-        : Array.isArray(
-            timelineResponse?.timeline
-          )
-          ? timelineResponse.timeline
-          : Array.isArray(
-              timelineResponse?.events
-            )
-            ? timelineResponse.events
-            : [];
+      extractArray(
+        results[1],
+        [
+          'timeline',
+          'events',
+          'rows'
+        ]
+      );
 
+    const templateResponse =
+      results[2] ||
+      null;
+
+    const templateItems =
+      extractArray(
+        templateResponse,
+        [
+          'items',
+          'details',
+          'detalle',
+          'rows'
+        ]
+      );
+
+    const unitItems =
+      mergeTemplateAndStock(
+        stock,
+        templateItems
+      );
 
     renderUnitDetail(
       unit,
       stock,
-      timeline
+      timeline,
+      unitItems
     );
 
-
   } catch (error) {
-
     openModal(`
-
       <h2>
         No se pudo abrir la unidad
       </h2>
 
-
       <div class="message">
-
-        ${esc(
-          error.message
-        )}
-
+        ${esc(error.message)}
       </div>
     `);
-
   }
-
 }
 
 
 // =========================================================
-// FICHA OPERATIVA DE UNIDAD
+// FICHA OPERATIVA
 // =========================================================
 
 function renderUnitDetail(
   unit,
   stock,
-  timeline
+  timeline,
+  unitItems
 ) {
-
-  const unitCode =
-    unit.codigo ||
-    '-';
-
-
-  const unitName =
-    unit.nombre ||
-    unitCode;
-
-
-  const unitType =
-    unit.tipoNombre ||
-    unit.tipo ||
-    '';
-
-
-  const service =
-    unit.servicioNombre ||
-    '';
-
-
-  const location =
-    unit.ubicacion ||
-    '';
-
-
-  const status =
-    unit.estado ||
-    '-';
-
+  const auditButton =
+    state.user?.rol ===
+    'CALIDAD'
+      ? `
+        <button
+          type="button"
+          class="button secondary"
+          id="unitAudit"
+        >
+          Auditar
+        </button>
+      `
+      : '';
 
   openModal(`
 
     <div class="unit-detail">
 
 
-      <div
-        class="unit-head"
-        style="
-          margin-bottom:10px;
-        "
-      >
+      <div class="unit-head">
 
         <div>
 
-          <h2
-            style="
-              margin:0 0 10px;
-            "
-          >
+          <h2 style="margin:0 0 10px">
 
             ${esc(
-              unitCode
+              unit.codigo ||
+              '-'
             )}
 
             ·
 
             ${esc(
-              unitName
+              unit.nombre ||
+              ''
             )}
 
           </h2>
@@ -1622,32 +1589,32 @@ function renderUnitDetail(
           <div class="muted">
 
             ${statusBadge(
-              status
+              unit.estado
             )}
 
             ${
-              unitType
-                ? ' ' +
+              unit.tipoNombre
+                ? ' · ' +
                   esc(
-                    unitType
+                    unit.tipoNombre
                   )
                 : ''
             }
 
             ${
-              service
+              unit.servicioNombre
                 ? ' · ' +
                   esc(
-                    service
+                    unit.servicioNombre
                   )
                 : ''
             }
 
             ${
-              location
+              unit.ubicacion
                 ? ' · ' +
                   esc(
-                    location
+                    unit.ubicacion
                   )
                 : ''
             }
@@ -1665,19 +1632,16 @@ function renderUnitDetail(
           display:flex;
           flex-wrap:wrap;
           gap:8px;
-          margin:18px 0 26px;
+          margin:20px 0 26px;
         "
       >
-
 
         <button
           type="button"
           class="button primary"
           id="unitVisoria"
         >
-
           Visoría
-
         </button>
 
 
@@ -1686,9 +1650,7 @@ function renderUnitDetail(
           class="button secondary"
           id="unitUse"
         >
-
           Registrar uso
-
         </button>
 
 
@@ -1697,31 +1659,19 @@ function renderUnitDetail(
           class="button secondary"
           id="unitReplenishment"
         >
-
           Reposición
-
         </button>
 
 
-        <button
-          type="button"
-          class="button secondary"
-          id="unitAudit"
-        >
-
-          Auditar
-
-        </button>
+        ${auditButton}
 
       </div>
 
 
       <div class="section-title">
-
         <h3>
           Stock actual
         </h3>
-
       </div>
 
 
@@ -1732,22 +1682,17 @@ function renderUnitDetail(
 
       <div
         class="section-title"
-        style="
-          margin-top:28px;
-        "
+        style="margin-top:28px"
       >
-
         <h3>
           Línea de tiempo
         </h3>
-
       </div>
 
 
       ${renderUnitTimeline(
         timeline
       )}
-
 
     </div>
   `);
@@ -1757,11 +1702,10 @@ function renderUnitDetail(
     ?.addEventListener(
       'click',
       function () {
-
         openUnitVisoria(
-          unit
+          unit,
+          unitItems
         );
-
       }
     );
 
@@ -1770,13 +1714,10 @@ function renderUnitDetail(
     ?.addEventListener(
       'click',
       function () {
-
-        openUnitActionInfo(
+        openUnitUse(
           unit,
-          'Registrar uso',
-          'El módulo permitirá registrar la utilización de la unidad y actualizar su historial.'
+          stock
         );
-
       }
     );
 
@@ -1785,13 +1726,10 @@ function renderUnitDetail(
     ?.addEventListener(
       'click',
       function () {
-
-        openUnitActionInfo(
+        openUnitReplenishment(
           unit,
-          'Reposición',
-          'El módulo permitirá registrar reposiciones y actualizar el stock de la unidad.'
+          unitItems
         );
-
       }
     );
 
@@ -1800,151 +1738,88 @@ function renderUnitDetail(
     ?.addEventListener(
       'click',
       function () {
-
-        openUnitActionInfo(
-          unit,
-          'Auditar unidad',
-          'El módulo permitirá registrar auditorías, hallazgos y seguimiento desde Calidad.'
+        openUnitAudit(
+          unit
         );
-
       }
     );
-
 }
 
 
 // =========================================================
-// STOCK ACTUAL
+// STOCK
 // =========================================================
 
 function renderUnitStockTable(
   stock
 ) {
+  const rows =
+    stock.map(
+      normalizeStockItem
+    );
 
   return `
-
     <div class="table-wrap">
 
       <table>
 
         <thead>
-
           <tr>
-
-            <th>
-              Insumo
-            </th>
-
-            <th>
-              Cantidad
-            </th>
-
-            <th>
-              Lote
-            </th>
-
-            <th>
-              Vencimiento
-            </th>
-
+            <th>Insumo</th>
+            <th>Cantidad</th>
+            <th>Lote</th>
+            <th>Vencimiento</th>
           </tr>
-
         </thead>
 
 
         <tbody>
 
           ${
-            stock.length
-              ? stock
+            rows.length
+              ? rows
                   .map(
                     function (item) {
-
-                      const name =
-                        item.nombreInsumo ||
-                        item.insumo ||
-                        item.nombre ||
-                        item.codigoInsumo ||
-                        '-';
-
-
-                      const quantity =
-                        item.cantidadActual ??
-                        item.cantidad ??
-                        item.stock ??
-                        0;
-
-
-                      const lot =
-                        item.lote ||
-                        item.numeroLote ||
-                        '-';
-
-
-                      const expiry =
-                        item.fechaVencimiento ||
-                        item.vencimiento ||
-                        null;
-
-
                       return `
-
                         <tr>
 
                           <td>
-
                             <strong>
-
                               ${esc(
-                                name
+                                item.nombre
                               )}
-
                             </strong>
-
                           </td>
 
-
                           <td>
-
                             ${esc(
-                              quantity
+                              item.cantidadActual
                             )}
-
                           </td>
 
-
                           <td>
-
                             ${esc(
-                              lot
+                              item.numeroLote ||
+                              '-'
                             )}
-
                           </td>
 
-
                           <td>
-
                             ${fmtDate(
-                              expiry
+                              item.fechaVencimiento
                             )}
-
                           </td>
 
                         </tr>
                       `;
-
                     }
                   )
                   .join('')
               : `
                 <tr>
-
                   <td colspan="4">
-
                     Sin stock cargado.
-
                   </td>
-
                 </tr>
               `
           }
@@ -1955,7 +1830,6 @@ function renderUnitStockTable(
 
     </div>
   `;
-
 }
 
 
@@ -1966,32 +1840,23 @@ function renderUnitStockTable(
 function renderUnitTimeline(
   timeline
 ) {
-
   if (
     !timeline.length
   ) {
-
     return `
-
       <div class="empty-state">
-
         Sin movimientos.
-
       </div>
     `;
-
   }
 
-
   return `
-
     <div class="grid">
 
       ${
         timeline
           .map(
             function (event) {
-
               const date =
                 event.fechaHora ||
                 event.fecha ||
@@ -1999,48 +1864,37 @@ function renderUnitTimeline(
                 event.createdAt ||
                 '';
 
-
               const type =
                 event.tipoEvento ||
                 event.tipo ||
                 event.accion ||
+                event.evento ||
                 'Movimiento';
-
 
               const description =
                 event.descripcion ||
                 event.detalle ||
                 event.observaciones ||
+                event.descripcionEvento ||
                 '';
-
 
               const user =
                 event.nombreUsuario ||
                 event.usuario ||
+                event.idUsuario ||
                 '';
 
-
               return `
-
                 <article class="card">
 
                   <div class="unit-head">
 
                     <strong>
-
-                      ${esc(
-                        type
-                      )}
-
+                      ${esc(type)}
                     </strong>
 
-
                     <span class="muted">
-
-                      ${fmtDate(
-                        date
-                      )}
-
+                      ${fmtDate(date)}
                     </span>
 
                   </div>
@@ -2050,11 +1904,7 @@ function renderUnitTimeline(
                     description
                       ? `
                         <p>
-
-                          ${esc(
-                            description
-                          )}
-
+                          ${esc(description)}
                         </p>
                       `
                       : ''
@@ -2065,13 +1915,8 @@ function renderUnitTimeline(
                     user
                       ? `
                         <div class="muted">
-
                           Registrado por:
-
-                          ${esc(
-                            user
-                          )}
-
+                          ${esc(user)}
                         </div>
                       `
                       : ''
@@ -2079,7 +1924,6 @@ function renderUnitTimeline(
 
                 </article>
               `;
-
             }
           )
           .join('')
@@ -2087,168 +1931,1341 @@ function renderUnitTimeline(
 
     </div>
   `;
-
 }
 
 
 // =========================================================
-// VISORÍA - ETAPA INICIAL
+// VISORÍA REAL
 // =========================================================
 
-function openUnitVisoria(unit) {
+function openUnitVisoria(
+  unit,
+  items
+) {
+  const usableItems =
+    items.filter(
+      function (item) {
+        return item.idInsumo;
+      }
+    );
 
   openModal(`
 
     <h2>
-      Visoría de unidad
+      Visoría
     </h2>
 
 
     <p class="muted">
 
-      ${esc(
-        unit.codigo ||
-        ''
-      )}
+      ${esc(unit.codigo)}
 
       ·
 
-      ${esc(
-        unit.nombre ||
-        ''
-      )}
+      ${esc(unit.nombre)}
 
     </p>
 
 
-    <div class="card">
+    <form
+      id="visoriaForm"
+      class="form-stack"
+    >
+
+      <label>
+
+        Resultado general
+
+        <select
+          id="visoriaResultado"
+        >
+          <option value="CONFORME">
+            Conforme
+          </option>
+
+          <option value="NO_CONFORME">
+            No conforme
+          </option>
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Observaciones generales
+
+        <textarea
+          id="visoriaObservaciones"
+          placeholder="Observaciones del control..."
+        ></textarea>
+
+      </label>
+
+
+      <div class="section-title">
+        <h3>
+          Control de insumos
+        </h3>
+      </div>
+
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Insumo</th>
+              <th>Esperado</th>
+              <th>Encontrado</th>
+              <th>Estado</th>
+              <th>Observación</th>
+            </tr>
+          </thead>
+
+
+          <tbody>
+
+            ${
+              usableItems.length
+                ? usableItems
+                    .map(
+                      function (
+                        item,
+                        index
+                      ) {
+                        const expected =
+                          item.cantidadEsperada ||
+                          item.cantidadActual ||
+                          0;
+
+                        return `
+                          <tr
+                            class="visoria-item"
+                            data-id-insumo="${esc(
+                              item.idInsumo
+                            )}"
+                          >
+
+                            <td>
+                              <strong>
+                                ${esc(
+                                  item.nombre
+                                )}
+                              </strong>
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="visoria-esperada"
+                                type="number"
+                                min="0"
+                                value="${esc(
+                                  expected
+                                )}"
+                              >
+
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="visoria-encontrada"
+                                type="number"
+                                min="0"
+                                value="${esc(
+                                  item.cantidadActual
+                                )}"
+                              >
+
+                            </td>
+
+
+                            <td>
+
+                              <select
+                                class="visoria-estado"
+                              >
+                                <option value="CONFORME">
+                                  Conforme
+                                </option>
+
+                                <option value="FALTANTE">
+                                  Faltante
+                                </option>
+
+                                <option value="VENCIDO">
+                                  Vencido
+                                </option>
+
+                                <option value="OBSERVADO">
+                                  Observado
+                                </option>
+                              </select>
+
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="visoria-observacion"
+                                type="text"
+                                placeholder="Opcional"
+                              >
+
+                            </td>
+
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="5">
+                      No se encontraron insumos asociados a esta unidad.
+                    </td>
+                  </tr>
+                `
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div
+        class="actions"
+        style="
+          display:flex;
+          gap:10px;
+          margin-top:20px;
+          flex-wrap:wrap;
+        "
+      >
+
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelVisoria"
+        >
+          Volver
+        </button>
+
+
+        <button
+          type="submit"
+          class="button primary"
+          ${usableItems.length ? '' : 'disabled'}
+        >
+          Registrar visoría
+        </button>
+
+      </div>
+
+    </form>
+  `);
+
+
+  $('#cancelVisoria')
+    ?.addEventListener(
+      'click',
+      function () {
+        openUnitDetail(
+          unit.idUnidad
+        );
+      }
+    );
+
+
+  $('#visoriaForm')
+    ?.addEventListener(
+      'submit',
+      async function (event) {
+        event.preventDefault();
+
+        const detalles =
+          $$('.visoria-item')
+            .map(
+              function (row) {
+                return {
+                  idInsumo:
+                    row.dataset.idInsumo,
+
+                  cantidadEsperada:
+                    numberValue(
+                      row.querySelector(
+                        '.visoria-esperada'
+                      ).value
+                    ),
+
+                  cantidadEncontrada:
+                    numberValue(
+                      row.querySelector(
+                        '.visoria-encontrada'
+                      ).value
+                    ),
+
+                  estado:
+                    row.querySelector(
+                      '.visoria-estado'
+                    ).value,
+
+                  observacion:
+                    row.querySelector(
+                      '.visoria-observacion'
+                    ).value.trim()
+                };
+              }
+            );
+
+        try {
+          await apiCall(
+            'createControl',
+            [
+              state.token,
+              {
+                idUnidad:
+                  unit.idUnidad,
+
+                tipoControl:
+                  VISORIA_CONTROL_TYPE,
+
+                resultado:
+                  $('#visoriaResultado')
+                    .value,
+
+                observaciones:
+                  $('#visoriaObservaciones')
+                    .value
+                    .trim(),
+
+                detalles:
+                  detalles
+              }
+            ]
+          );
+
+          showToast(
+            'Visoría registrada correctamente.'
+          );
+
+          await openUnitDetail(
+            unit.idUnidad
+          );
+
+        } catch (error) {
+          showToast(
+            error.message
+          );
+        }
+      }
+    );
+}
+
+
+// =========================================================
+// REGISTRAR USO REAL
+// =========================================================
+
+function openUnitUse(
+  unit,
+  stock
+) {
+  const stockItems =
+    stock
+      .map(
+        normalizeStockItem
+      )
+      .filter(
+        function (item) {
+          return (
+            item.idInsumo &&
+            item.cantidadActual > 0
+          );
+        }
+      );
+
+  openModal(`
+
+    <h2>
+      Registrar uso
+    </h2>
+
+
+    <p class="muted">
+
+      ${esc(unit.codigo)}
+
+      ·
+
+      ${esc(unit.nombre)}
+
+    </p>
+
+
+    <form
+      id="useForm"
+      class="form-stack"
+    >
+
+      <label>
+
+        Motivo del uso
+
+        <input
+          id="useReason"
+          type="text"
+          required
+          placeholder="Ej.: Atención de emergencia"
+        >
+
+      </label>
+
+
+      <label>
+
+        Observaciones
+
+        <textarea
+          id="useObservations"
+          placeholder="Observaciones del uso..."
+        ></textarea>
+
+      </label>
+
+
+      <div class="section-title">
+        <h3>
+          Insumos utilizados
+        </h3>
+      </div>
+
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Insumo</th>
+              <th>Disponible</th>
+              <th>Lote</th>
+              <th>Cantidad utilizada</th>
+            </tr>
+          </thead>
+
+
+          <tbody>
+
+            ${
+              stockItems.length
+                ? stockItems
+                    .map(
+                      function (item) {
+                        return `
+                          <tr
+                            class="use-item"
+                            data-id-insumo="${esc(
+                              item.idInsumo
+                            )}"
+                            data-id-lote="${esc(
+                              item.idLote
+                            )}"
+                          >
+
+                            <td>
+                              <strong>
+                                ${esc(
+                                  item.nombre
+                                )}
+                              </strong>
+                            </td>
+
+
+                            <td>
+                              ${esc(
+                                item.cantidadActual
+                              )}
+                            </td>
+
+
+                            <td>
+                              ${esc(
+                                item.numeroLote ||
+                                '-'
+                              )}
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="use-quantity"
+                                type="number"
+                                min="0"
+                                max="${esc(
+                                  item.cantidadActual
+                                )}"
+                                value="0"
+                              >
+
+                            </td>
+
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="4">
+                      No hay stock disponible.
+                    </td>
+                  </tr>
+                `
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div
+        class="actions"
+        style="
+          display:flex;
+          gap:10px;
+          margin-top:20px;
+          flex-wrap:wrap;
+        "
+      >
+
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelUse"
+        >
+          Volver
+        </button>
+
+
+        <button
+          type="submit"
+          class="button primary"
+          ${stockItems.length ? '' : 'disabled'}
+        >
+          Registrar uso
+        </button>
+
+      </div>
+
+    </form>
+  `);
+
+
+  $('#cancelUse')
+    ?.addEventListener(
+      'click',
+      function () {
+        openUnitDetail(
+          unit.idUnidad
+        );
+      }
+    );
+
+
+  $('#useForm')
+    ?.addEventListener(
+      'submit',
+      async function (event) {
+        event.preventDefault();
+
+        const motivo =
+          $('#useReason')
+            .value
+            .trim();
+
+        if (!motivo) {
+          showToast(
+            'Debe indicar el motivo del uso.'
+          );
+
+          return;
+        }
+
+        const detalles =
+          $$('.use-item')
+            .map(
+              function (row) {
+                return {
+                  idInsumo:
+                    row.dataset.idInsumo,
+
+                  idLote:
+                    row.dataset.idLote ||
+                    '',
+
+                  cantidadUtilizada:
+                    numberValue(
+                      row.querySelector(
+                        '.use-quantity'
+                      ).value
+                    )
+                };
+              }
+            )
+            .filter(
+              function (detail) {
+                return (
+                  detail.cantidadUtilizada >
+                  0
+                );
+              }
+            );
+
+        if (!detalles.length) {
+          showToast(
+            'Debe indicar al menos un insumo utilizado.'
+          );
+
+          return;
+        }
+
+        try {
+          await apiCall(
+            'registerUse',
+            [
+              state.token,
+              {
+                idUnidad:
+                  unit.idUnidad,
+
+                motivo:
+                  motivo,
+
+                observaciones:
+                  $('#useObservations')
+                    .value
+                    .trim(),
+
+                detalles:
+                  detalles
+              }
+            ]
+          );
+
+          showToast(
+            'Uso registrado correctamente.'
+          );
+
+          await openUnitDetail(
+            unit.idUnidad
+          );
+
+        } catch (error) {
+          showToast(
+            error.message
+          );
+        }
+      }
+    );
+}
+
+
+// =========================================================
+// REPOSICIÓN REAL
+// =========================================================
+
+function openUnitReplenishment(
+  unit,
+  items
+) {
+  const usableItems =
+    items.filter(
+      function (item) {
+        return item.idInsumo;
+      }
+    );
+
+  openModal(`
+
+    <h2>
+      Reposición
+    </h2>
+
+
+    <p class="muted">
+
+      ${esc(unit.codigo)}
+
+      ·
+
+      ${esc(unit.nombre)}
+
+    </p>
+
+
+    <form
+      id="replenishmentForm"
+      class="form-stack"
+    >
+
+      <label>
+
+        Observaciones
+
+        <textarea
+          id="replenishmentObservations"
+          placeholder="Observaciones de la reposición..."
+        ></textarea>
+
+      </label>
+
+
+      <div class="section-title">
+        <h3>
+          Insumos a reponer
+        </h3>
+      </div>
+
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Insumo</th>
+              <th>Stock actual</th>
+              <th>Cantidad</th>
+              <th>Número de lote</th>
+              <th>Vencimiento</th>
+            </tr>
+          </thead>
+
+
+          <tbody>
+
+            ${
+              usableItems.length
+                ? usableItems
+                    .map(
+                      function (item) {
+                        return `
+                          <tr
+                            class="replenishment-item"
+                            data-id-insumo="${esc(
+                              item.idInsumo
+                            )}"
+                          >
+
+                            <td>
+                              <strong>
+                                ${esc(
+                                  item.nombre
+                                )}
+                              </strong>
+                            </td>
+
+
+                            <td>
+                              ${esc(
+                                item.cantidadActual ||
+                                0
+                              )}
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="rep-quantity"
+                                type="number"
+                                min="0"
+                                value="0"
+                              >
+
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="rep-lot"
+                                type="text"
+                                placeholder="Lote"
+                              >
+
+                            </td>
+
+
+                            <td>
+
+                              <input
+                                class="rep-expiry"
+                                type="date"
+                              >
+
+                            </td>
+
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="5">
+                      No hay insumos asociados.
+                    </td>
+                  </tr>
+                `
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div
+        class="actions"
+        style="
+          display:flex;
+          gap:10px;
+          margin-top:20px;
+          flex-wrap:wrap;
+        "
+      >
+
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelReplenishment"
+        >
+          Volver
+        </button>
+
+
+        <button
+          type="submit"
+          class="button primary"
+          ${usableItems.length ? '' : 'disabled'}
+        >
+          Registrar reposición
+        </button>
+
+      </div>
+
+    </form>
+  `);
+
+
+  $('#cancelReplenishment')
+    ?.addEventListener(
+      'click',
+      function () {
+        openUnitDetail(
+          unit.idUnidad
+        );
+      }
+    );
+
+
+  $('#replenishmentForm')
+    ?.addEventListener(
+      'submit',
+      async function (event) {
+        event.preventDefault();
+
+        const detalles =
+          $$('.replenishment-item')
+            .map(
+              function (row) {
+                return {
+                  idInsumo:
+                    row.dataset.idInsumo,
+
+                  cantidad:
+                    numberValue(
+                      row.querySelector(
+                        '.rep-quantity'
+                      ).value
+                    ),
+
+                  numeroLote:
+                    row.querySelector(
+                      '.rep-lot'
+                    ).value.trim(),
+
+                  fechaVencimiento:
+                    row.querySelector(
+                      '.rep-expiry'
+                    ).value,
+
+                  idLote:
+                    ''
+                };
+              }
+            )
+            .filter(
+              function (detail) {
+                return (
+                  detail.cantidad >
+                  0
+                );
+              }
+            );
+
+        if (!detalles.length) {
+          showToast(
+            'Debe registrar al menos un insumo repuesto.'
+          );
+
+          return;
+        }
+
+        try {
+          await apiCall(
+            'registerReplenishment',
+            [
+              state.token,
+              {
+                idUnidad:
+                  unit.idUnidad,
+
+                observaciones:
+                  $('#replenishmentObservations')
+                    .value
+                    .trim(),
+
+                detalles:
+                  detalles
+              }
+            ]
+          );
+
+          showToast(
+            'Reposición registrada correctamente.'
+          );
+
+          await openUnitDetail(
+            unit.idUnidad
+          );
+
+        } catch (error) {
+          showToast(
+            error.message
+          );
+        }
+      }
+    );
+}
+
+
+// =========================================================
+// AUDITORÍA REAL
+// =========================================================
+
+function openUnitAudit(unit) {
+  if (
+    state.user?.rol !==
+    'CALIDAD'
+  ) {
+    showToast(
+      'La auditoría está reservada al Área de Calidad.'
+    );
+
+    return;
+  }
+
+  openModal(`
+
+    <h2>
+      Auditar unidad
+    </h2>
+
+
+    <p class="muted">
+
+      ${esc(unit.codigo)}
+
+      ·
+
+      ${esc(unit.nombre)}
+
+    </p>
+
+
+    <form
+      id="auditForm"
+      class="form-stack"
+    >
+
+      <label>
+
+        Resultado general
+
+        <select
+          id="auditResult"
+          required
+        >
+          <option value="CONFORME">
+            Conforme
+          </option>
+
+          <option value="CON_OBSERVACIONES">
+            Conforme con observaciones
+          </option>
+
+          <option value="NO_CONFORME">
+            No conforme
+          </option>
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Observaciones generales
+
+        <textarea
+          id="auditObservations"
+          placeholder="Observaciones generales de la auditoría..."
+        ></textarea>
+
+      </label>
+
+
+      <div class="section-title">
+
+        <div>
+          <h3>
+            Hallazgos
+          </h3>
+        </div>
+
+
+        <button
+          type="button"
+          class="button secondary"
+          id="addAuditFinding"
+        >
+          + Agregar hallazgo
+        </button>
+
+      </div>
+
+
+      <div
+        id="auditFindings"
+        class="grid"
+      ></div>
+
+
+      <div
+        class="actions"
+        style="
+          display:flex;
+          gap:10px;
+          margin-top:20px;
+          flex-wrap:wrap;
+        "
+      >
+
+        <button
+          type="button"
+          class="button secondary"
+          id="cancelAudit"
+        >
+          Volver
+        </button>
+
+
+        <button
+          type="submit"
+          class="button primary"
+        >
+          Finalizar auditoría
+        </button>
+
+      </div>
+
+    </form>
+  `);
+
+
+  $('#cancelAudit')
+    ?.addEventListener(
+      'click',
+      function () {
+        openUnitDetail(
+          unit.idUnidad
+        );
+      }
+    );
+
+
+  $('#addAuditFinding')
+    ?.addEventListener(
+      'click',
+      addAuditFindingRow
+    );
+
+
+  $('#auditForm')
+    ?.addEventListener(
+      'submit',
+      async function (event) {
+        event.preventDefault();
+
+        const hallazgos =
+          $$('.audit-finding')
+            .map(
+              function (card) {
+                const descripcion =
+                  card.querySelector(
+                    '.finding-description'
+                  ).value.trim();
+
+                if (!descripcion) {
+                  return null;
+                }
+
+                return {
+                  tipoHallazgo:
+                    card.querySelector(
+                      '.finding-type'
+                    ).value.trim() ||
+                    'GENERAL',
+
+                  clasificacion:
+                    card.querySelector(
+                      '.finding-classification'
+                    ).value,
+
+                  descripcion:
+                    descripcion,
+
+                  requiereRespuesta:
+                    card.querySelector(
+                      '.finding-response'
+                    ).checked,
+
+                  requiereAccionMejora:
+                    card.querySelector(
+                      '.finding-action'
+                    ).checked,
+
+                  fechaLimite:
+                    card.querySelector(
+                      '.finding-deadline'
+                    ).value,
+
+                  feedback:
+                    card.querySelector(
+                      '.finding-feedback'
+                    ).value.trim()
+                };
+              }
+            )
+            .filter(Boolean);
+
+        try {
+          await apiCall(
+            'createAudit',
+            [
+              state.token,
+              {
+                idUnidad:
+                  unit.idUnidad,
+
+                resultadoGeneral:
+                  $('#auditResult')
+                    .value,
+
+                observacionesGenerales:
+                  $('#auditObservations')
+                    .value
+                    .trim(),
+
+                hallazgos:
+                  hallazgos
+              }
+            ]
+          );
+
+          showToast(
+            'Auditoría registrada correctamente.'
+          );
+
+          await openUnitDetail(
+            unit.idUnidad
+          );
+
+        } catch (error) {
+          showToast(
+            error.message
+          );
+        }
+      }
+    );
+}
+
+
+function addAuditFindingRow() {
+  const container =
+    $('#auditFindings');
+
+  if (!container) {
+    return;
+  }
+
+  const card =
+    document.createElement(
+      'div'
+    );
+
+  card.className =
+    'card audit-finding';
+
+  card.innerHTML = `
+
+    <div class="unit-head">
 
       <strong>
-        Control operativo
+        Hallazgo
       </strong>
 
 
-      <p>
-
-        La ficha de Visoría quedó recuperada dentro de SIGURE.
-
-      </p>
-
-
-      <p class="muted">
-
-        En la próxima etapa conectaremos esta pantalla
-        con la plantilla vigente de la unidad para registrar
-        cantidad esperada, cantidad encontrada, estado
-        y observaciones por insumo.
-
-      </p>
+      <button
+        type="button"
+        class="button secondary remove-finding"
+      >
+        Quitar
+      </button>
 
     </div>
 
 
-    <button
-      type="button"
-      class="button secondary"
-      id="returnToUnit"
-    >
+    <label>
 
-      Volver a la unidad
+      Tipo de hallazgo
 
-    </button>
-  `);
+      <input
+        class="finding-type"
+        type="text"
+        value="GENERAL"
+      >
+
+    </label>
 
 
-  $('#returnToUnit')
+    <label>
+
+      Clasificación
+
+      <select
+        class="finding-classification"
+      >
+        <option value="OBSERVACION">
+          Observación
+        </option>
+
+        <option value="CRITICO">
+          Crítico
+        </option>
+      </select>
+
+    </label>
+
+
+    <label>
+
+      Descripción
+
+      <textarea
+        class="finding-description"
+        required
+      ></textarea>
+
+    </label>
+
+
+    <label>
+
+      Feedback para el servicio
+
+      <textarea
+        class="finding-feedback"
+      ></textarea>
+
+    </label>
+
+
+    <label>
+
+      Fecha límite
+
+      <input
+        class="finding-deadline"
+        type="date"
+      >
+
+    </label>
+
+
+    <label>
+
+      <input
+        class="finding-response"
+        type="checkbox"
+        style="width:auto"
+      >
+
+      Requiere respuesta del servicio
+
+    </label>
+
+
+    <label>
+
+      <input
+        class="finding-action"
+        type="checkbox"
+        style="width:auto"
+      >
+
+      Requiere acción de mejora
+
+    </label>
+  `;
+
+  container.appendChild(
+    card
+  );
+
+  card.querySelector(
+    '.remove-finding'
+  )
     ?.addEventListener(
       'click',
       function () {
-
-        openUnitDetail(
-          unit.idUnidad
-        );
-
+        card.remove();
       }
     );
-
-}
-
-
-// =========================================================
-// ACCIONES OPERATIVAS PENDIENTES DE CONEXIÓN
-// =========================================================
-
-function openUnitActionInfo(
-  unit,
-  title,
-  description
-) {
-
-  openModal(`
-
-    <h2>
-
-      ${esc(
-        title
-      )}
-
-    </h2>
-
-
-    <p class="muted">
-
-      ${esc(
-        unit.codigo ||
-        ''
-      )}
-
-      ·
-
-      ${esc(
-        unit.nombre ||
-        ''
-      )}
-
-    </p>
-
-
-    <div class="card">
-
-      <p>
-
-        ${esc(
-          description
-        )}
-
-      </p>
-
-    </div>
-
-
-    <button
-      type="button"
-      class="button secondary"
-      id="returnToUnitAction"
-    >
-
-      Volver a la unidad
-
-    </button>
-  `);
-
-
-  $('#returnToUnitAction')
-    ?.addEventListener(
-      'click',
-      function () {
-
-        openUnitDetail(
-          unit.idUnidad
-        );
-
-      }
-    );
-
 }
 
 
@@ -2257,7 +3274,6 @@ function openUnitActionInfo(
 // =========================================================
 
 async function renderAlerts() {
-
   const alerts =
     await apiCall(
       'listAlerts',
@@ -2266,47 +3282,29 @@ async function renderAlerts() {
       ]
     );
 
-
-  $('#content').innerHTML =
-    alertsTable(
-      Array.isArray(alerts)
-        ? alerts
-        : []
-    );
-
+  $('#content')
+    .innerHTML =
+      alertsTable(
+        Array.isArray(alerts)
+          ? alerts
+          : []
+      );
 }
 
 
 function alertsTable(alerts) {
-
   return `
-
     <div class="table-wrap">
 
       <table>
 
         <thead>
-
           <tr>
-
-            <th>
-              Nivel
-            </th>
-
-            <th>
-              Tipo
-            </th>
-
-            <th>
-              Descripción
-            </th>
-
-            <th>
-              Fecha
-            </th>
-
+            <th>Nivel</th>
+            <th>Tipo</th>
+            <th>Descripción</th>
+            <th>Fecha</th>
           </tr>
-
         </thead>
 
 
@@ -2317,61 +3315,43 @@ function alertsTable(alerts) {
               ? alerts
                   .map(
                     function (alert) {
-
                       return `
-
                         <tr>
 
                           <td>
-
                             ${esc(
                               alert.nivel
                             )}
-
                           </td>
 
-
                           <td>
-
                             ${esc(
                               alert.tipo
                             )}
-
                           </td>
 
-
                           <td>
-
                             ${esc(
                               alert.descripcion
                             )}
-
                           </td>
 
-
                           <td>
-
                             ${fmtDate(
                               alert.fechaGeneracion
                             )}
-
                           </td>
 
                         </tr>
                       `;
-
                     }
                   )
                   .join('')
               : `
                 <tr>
-
                   <td colspan="4">
-
                     Sin alertas abiertas.
-
                   </td>
-
                 </tr>
               `
           }
@@ -2382,7 +3362,6 @@ function alertsTable(alerts) {
 
     </div>
   `;
-
 }
 
 
@@ -2391,7 +3370,6 @@ function alertsTable(alerts) {
 // =========================================================
 
 async function renderFeedback() {
-
   const rows =
     await apiCall(
       'listMyAuditFeedback',
@@ -2400,73 +3378,81 @@ async function renderFeedback() {
       ]
     );
 
+  $('#content')
+    .innerHTML = `
 
-  $('#content').innerHTML = `
+      <div class="grid">
 
-    <div class="grid">
+        ${
+          Array.isArray(rows) &&
+          rows.length
+            ? rows
+                .map(
+                  function (row) {
+                    return `
+                      <article class="card">
 
-      ${
-        Array.isArray(rows) &&
-        rows.length
-          ? rows
-              .map(
-                function (row) {
+                        <div class="unit-head">
 
-                  return `
+                          <strong>
+                            ${esc(
+                              row.estado ||
+                              'Feedback'
+                            )}
+                          </strong>
 
-                    <article class="card">
+                          <span class="muted">
+                            ${fmtDate(
+                              row.fechaEnvio
+                            )}
+                          </span>
 
-                      <div class="unit-head">
+                        </div>
 
-                        <strong>
 
+                        <p>
                           ${esc(
-                            row.estado ||
-                            'Feedback'
+                            row.mensajeCalidad ||
+                            row.descripcion ||
+                            ''
                           )}
-
-                        </strong>
-
-
-                        <span class="muted">
-
-                          ${fmtDate(
-                            row.fechaEnvio
-                          )}
-
-                        </span>
-
-                      </div>
+                        </p>
 
 
-                      <p>
+                        ${
+                          row.respuestaServicio
+                            ? `
+                              <div class="loading-card">
 
-                        ${esc(
-                          row.mensajeCalidad ||
-                          row.descripcion ||
-                          ''
-                        )}
+                                <strong>
+                                  Respuesta del servicio
+                                </strong>
 
-                      </p>
+                                <p>
+                                  ${esc(
+                                    row.respuestaServicio
+                                  )}
+                                </p>
 
-                    </article>
-                  `;
+                              </div>
+                            `
+                            : ''
+                        }
 
-                }
-              )
-              .join('')
-          : `
-            <div class="empty-state">
+                      </article>
+                    `;
+                  }
+                )
+                .join('')
+            : `
+              <div class="empty-state">
+                No hay devoluciones de auditoría pendientes.
+              </div>
+            `
+        }
 
-              No hay devoluciones de auditoría pendientes.
-
-            </div>
-          `
-      }
-
-    </div>
-  `;
-
+      </div>
+    `;
 }
 
 
@@ -2475,19 +3461,15 @@ async function renderFeedback() {
 // =========================================================
 
 async function renderAdmin() {
-
   if (
     !state.user ||
     state.user.rol !==
       'CALIDAD'
   ) {
-
     throw new Error(
       'Acceso restringido.'
     );
-
   }
-
 
   const data =
     await apiCall(
@@ -2497,127 +3479,115 @@ async function renderAdmin() {
       ]
     );
 
-
   state.adminData =
     data ||
     {};
 
+  $('#content')
+    .innerHTML = `
 
-  $('#content').innerHTML = `
+      <div class="admin-tabs">
 
-    <div class="admin-tabs">
-
-      <button
-        type="button"
-        class="admin-tab active"
-        data-admin-section="services"
-      >
-        Servicios
-      </button>
-
-
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="users"
-      >
-        Usuarios
-      </button>
+        <button
+          type="button"
+          class="admin-tab active"
+          data-admin-section="services"
+        >
+          Servicios
+        </button>
 
 
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="units"
-      >
-        Unidades
-      </button>
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="users"
+        >
+          Usuarios
+        </button>
 
 
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="catalog"
-      >
-        Catálogo
-      </button>
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="units"
+        >
+          Unidades
+        </button>
 
 
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="templates"
-      >
-        Plantillas
-      </button>
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="catalog"
+        >
+          Catálogo
+        </button>
 
 
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="types"
-      >
-        Frecuencias
-      </button>
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="templates"
+        >
+          Plantillas
+        </button>
 
 
-      <button
-        type="button"
-        class="admin-tab"
-        data-admin-section="config"
-      >
-        Configuración
-      </button>
-
-    </div>
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="types"
+        >
+          Frecuencias
+        </button>
 
 
-    <div id="adminPanel"></div>
-  `;
+        <button
+          type="button"
+          class="admin-tab"
+          data-admin-section="config"
+        >
+          Configuración
+        </button>
 
+      </div>
+
+
+      <div id="adminPanel"></div>
+    `;
 
   $$('.admin-tab')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             $$('.admin-tab')
               .forEach(
                 function (tab) {
-
                   tab.classList.remove(
                     'active'
                   );
-
                 }
               );
-
 
             button.classList.add(
               'active'
             );
 
-
             renderAdminSection(
               button.dataset.adminSection,
               state.adminData
             );
-
           }
         );
-
       }
     );
-
 
   renderAdminSection(
     'services',
     state.adminData
   );
-
 }
 
 
@@ -2629,99 +3599,72 @@ function renderAdminSection(
   section,
   data
 ) {
-
   if (
     section ===
     'services'
   ) {
-
     return renderAdminServices(
       data
     );
-
   }
-
 
   if (
     section ===
     'users'
   ) {
-
     return renderAdminUsers(
       data
     );
-
   }
-
 
   if (
     section ===
     'units'
   ) {
-
     return renderAdminUnits(
       data
     );
-
   }
-
 
   if (
     section ===
     'catalog'
   ) {
-
     return renderAdminCatalog(
       data
     );
-
   }
-
 
   if (
     section ===
     'templates'
   ) {
-
     return renderAdminTemplates(
       data
     );
-
   }
-
 
   if (
     section ===
     'types'
   ) {
-
     return renderAdminTypes(
       data
     );
-
   }
-
 
   if (
     section ===
     'config'
   ) {
-
     return renderAdminConfig(
       data
     );
-
   }
-
 }
 
 
-// =========================================================
-// REFRESCAR ADMIN
-// =========================================================
-
 async function refreshAdminData() {
-
   state.adminData =
     await apiCall(
       'adminGetMasterData',
@@ -2730,39 +3673,31 @@ async function refreshAdminData() {
       ]
     );
 
-
   return state.adminData;
-
 }
 
 
 async function refreshAdminSection(
   section
 ) {
-
   const data =
     await refreshAdminData();
-
 
   renderAdminSection(
     section,
     data
   );
 
-
   $$('.admin-tab')
     .forEach(
       function (button) {
-
         button.classList.toggle(
           'active',
           button.dataset.adminSection ===
             section
         );
-
       }
     );
-
 }
 
 
@@ -2771,7 +3706,6 @@ async function refreshAdminSection(
 // =========================================================
 
 function renderAdminServices(data) {
-
   const services =
     Array.isArray(
       data.services
@@ -2779,150 +3713,125 @@ function renderAdminServices(data) {
       ? data.services
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title admin-section-title">
 
-    <div class="section-title admin-section-title">
+        <div>
 
-      <div>
+          <h3>
+            Servicios
+          </h3>
 
-        <h3>
-          Servicios
-        </h3>
+          <div class="muted">
+            Cada servicio administra únicamente sus propias unidades.
+          </div>
 
-        <div class="muted">
-          Cada servicio administra únicamente sus propias unidades.
         </div>
+
+
+        <button
+          type="button"
+          id="adminNewService"
+          class="button primary"
+        >
+          Nuevo servicio
+        </button>
 
       </div>
 
 
-      <button
-        type="button"
-        id="adminNewService"
-        class="button primary"
-      >
+      <div class="table-wrap">
 
-        Nuevo servicio
+        <table>
 
-      </button>
-
-    </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Servicio</th>
-            <th>Establecimiento</th>
-            <th>Estado</th>
-            <th>Acción</th>
-          </tr>
-
-        </thead>
+          <thead>
+            <tr>
+              <th>Servicio</th>
+              <th>Establecimiento</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
 
 
-        <tbody>
+          <tbody>
 
-          ${
-            services.length
-              ? services
-                  .map(
-                    function (service) {
+            ${
+              services.length
+                ? services
+                    .map(
+                      function (service) {
+                        const active =
+                          asBool(
+                            service.activo
+                          );
 
-                      const active =
-                        asBool(
-                          service.activo
-                        );
+                        return `
+                          <tr>
 
+                            <td>
+                              <strong>
+                                ${esc(
+                                  service.nombreServicio
+                                )}
+                              </strong>
+                            </td>
 
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                service.nombreServicio
+                                service.establecimiento ||
+                                '-'
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
+                              ${
+                                active
+                                  ? statusBadge(
+                                      'ACTIVO'
+                                    )
+                                  : statusBadge(
+                                      'INACTIVO'
+                                    )
+                              }
+                            </td>
 
-                          </td>
+                            <td>
 
+                              <button
+                                type="button"
+                                class="button secondary edit-service"
+                                data-id="${esc(
+                                  service.idServicio
+                                )}"
+                              >
+                                Editar
+                              </button>
 
-                          <td>
+                            </td>
 
-                            ${esc(
-                              service.establecimiento ||
-                              '-'
-                            )}
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="4">
+                      No hay servicios registrados.
+                    </td>
+                  </tr>
+                `
+            }
 
-                          </td>
+          </tbody>
 
+        </table>
 
-                          <td>
-
-                            ${
-                              active
-                                ? statusBadge(
-                                    'ACTIVO'
-                                  )
-                                : statusBadge(
-                                    'INACTIVO'
-                                  )
-                            }
-
-                          </td>
-
-
-                          <td>
-
-                            <button
-                              type="button"
-                              class="button secondary edit-service"
-                              data-id="${esc(
-                                service.idServicio
-                              )}"
-                            >
-
-                              Editar
-
-                            </button>
-
-                          </td>
-
-                        </tr>
-                      `;
-
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="4">
-
-                    No hay servicios registrados.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $('#adminNewService')
@@ -2935,47 +3844,34 @@ function renderAdminServices(data) {
   $$('.edit-service')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             const service =
               services.find(
                 function (item) {
-
                   return (
                     item.idServicio ===
                     button.dataset.id
                   );
-
                 }
               );
 
-
-            if (service) {
-
+            if (
+              service
+            ) {
               openEditService(
                 service
               );
-
             }
-
           }
         );
-
       }
     );
-
 }
 
 
-// =========================================================
-// NUEVO SERVICIO
-// =========================================================
-
 function openNewService() {
-
   openModal(`
 
     <h2>
@@ -2989,25 +3885,21 @@ function openNewService() {
     >
 
       <label>
-
         Nombre del servicio
 
         <input
           id="svcName"
           required
         >
-
       </label>
 
 
       <label>
-
         Establecimiento
 
         <input
           id="svcSite"
         >
-
       </label>
 
 
@@ -3015,9 +3907,7 @@ function openNewService() {
         type="submit"
         class="button primary"
       >
-
         Crear servicio
-
       </button>
 
     </form>
@@ -3028,17 +3918,13 @@ function openNewService() {
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminCreateService',
             [
               state.token,
-
               {
                 nombreServicio:
                   $('#svcName')
@@ -3053,45 +3939,31 @@ function openNewService() {
             ]
           );
 
-
           showToast(
             'Servicio creado.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'services'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
-// =========================================================
-// EDITAR SERVICIO
-// =========================================================
-
 function openEditService(service) {
-
   const active =
     asBool(
       service.activo
     );
-
 
   openModal(`
 
@@ -3106,7 +3978,6 @@ function openEditService(service) {
     >
 
       <label>
-
         Servicio
 
         <input
@@ -3116,12 +3987,10 @@ function openEditService(service) {
           )}"
           required
         >
-
       </label>
 
 
       <label>
-
         Establecimiento
 
         <input
@@ -3131,12 +4000,10 @@ function openEditService(service) {
             ''
           )}"
         >
-
       </label>
 
 
       <label>
-
         Estado
 
         <select
@@ -3150,7 +4017,6 @@ function openEditService(service) {
             Activo
           </option>
 
-
           <option
             value="false"
             ${!active ? 'selected' : ''}
@@ -3159,7 +4025,6 @@ function openEditService(service) {
           </option>
 
         </select>
-
       </label>
 
 
@@ -3167,9 +4032,7 @@ function openEditService(service) {
         type="submit"
         class="button primary"
       >
-
         Guardar cambios
-
       </button>
 
     </form>
@@ -3180,12 +4043,9 @@ function openEditService(service) {
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminUpdateService',
             [
@@ -3212,31 +4072,23 @@ function openEditService(service) {
             ]
           );
 
-
           showToast(
             'Servicio actualizado.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'services'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
@@ -3245,14 +4097,12 @@ function openEditService(service) {
 // =========================================================
 
 function renderAdminUsers(data) {
-
   const users =
     Array.isArray(
       data.users
     )
       ? data.users
       : [];
-
 
   const services =
     Array.isArray(
@@ -3261,215 +4111,180 @@ function renderAdminUsers(data) {
       ? data.services
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title admin-section-title">
 
-    <div class="section-title admin-section-title">
+        <div>
+          <h3>
+            Usuarios
+          </h3>
 
-      <div>
-
-        <h3>
-          Usuarios
-        </h3>
-
-        <div class="muted">
-          Gestión de accesos institucionales.
+          <div class="muted">
+            Gestión de accesos institucionales.
+          </div>
         </div>
+
+
+        <button
+          type="button"
+          id="adminNewUser"
+          class="button primary"
+        >
+          Nuevo usuario
+        </button>
 
       </div>
 
 
-      <button
-        type="button"
-        id="adminNewUser"
-        class="button primary"
-      >
+      <div class="table-wrap">
 
-        Nuevo usuario
+        <table>
 
-      </button>
-
-    </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Usuario</th>
-            <th>Nombre</th>
-            <th>Rol</th>
-            <th>Servicio</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-
-        </thead>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Nombre</th>
+              <th>Rol</th>
+              <th>Servicio</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
 
 
-        <tbody>
+          <tbody>
 
-          ${
-            users.length
-              ? users
-                  .map(
-                    function (user) {
+            ${
+              users.length
+                ? users
+                    .map(
+                      function (user) {
+                        const active =
+                          String(
+                            user.estado ||
+                            ''
+                          ).toUpperCase() ===
+                          'ACTIVO';
 
-                      const active =
-                        String(
-                          user.estado ||
-                          ''
-                        ).toUpperCase() ===
-                        'ACTIVO';
+                        return `
+                          <tr>
 
+                            <td>
+                              <strong>
+                                ${esc(
+                                  user.usuario
+                                )}
+                              </strong>
+                            </td>
 
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                user.usuario
+                                user.nombre ||
+                                '-'
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
+                              ${esc(
+                                user.rol ||
+                                '-'
+                              )}
+                            </td>
 
-                          </td>
+                            <td>
+                              ${esc(
+                                adminServiceName(
+                                  user.idServicio,
+                                  services
+                                )
+                              )}
+                            </td>
 
+                            <td>
+                              ${statusBadge(
+                                user.estado
+                              )}
+                            </td>
 
-                          <td>
+                            <td>
 
-                            ${esc(
-                              user.nombre ||
-                              '-'
-                            )}
+                              ${
+                                user.rol ===
+                                'SERVICIO'
+                                  ? `
+                                    <div class="actions">
 
-                          </td>
-
-
-                          <td>
-
-                            ${esc(
-                              user.rol ||
-                              '-'
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${esc(
-                              adminServiceName(
-                                user.idServicio,
-                                services
-                              )
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${statusBadge(
-                              user.estado
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${
-                              user.rol ===
-                              'SERVICIO'
-                                ? `
-                                  <div class="actions">
-
-                                    <button
-                                      type="button"
-                                      class="button secondary reset-user"
-                                      data-id="${esc(
-                                        user.idUsuario
-                                      )}"
-                                      data-user="${esc(
-                                        user.usuario
-                                      )}"
-                                    >
-                                      Nueva clave
-                                    </button>
+                                      <button
+                                        type="button"
+                                        class="button secondary reset-user"
+                                        data-id="${esc(
+                                          user.idUsuario
+                                        )}"
+                                        data-user="${esc(
+                                          user.usuario
+                                        )}"
+                                      >
+                                        Nueva clave
+                                      </button>
 
 
-                                    <button
-                                      type="button"
-                                      class="button secondary toggle-user"
-                                      data-id="${esc(
-                                        user.idUsuario
-                                      )}"
-                                      data-status="${
-                                        active
-                                          ? 'INACTIVO'
-                                          : 'ACTIVO'
-                                      }"
-                                    >
+                                      <button
+                                        type="button"
+                                        class="button secondary toggle-user"
+                                        data-id="${esc(
+                                          user.idUsuario
+                                        )}"
+                                        data-status="${
+                                          active
+                                            ? 'INACTIVO'
+                                            : 'ACTIVO'
+                                        }"
+                                      >
+                                        ${
+                                          active
+                                            ? 'Desactivar'
+                                            : 'Activar'
+                                        }
+                                      </button>
 
-                                      ${
-                                        active
-                                          ? 'Desactivar'
-                                          : 'Activar'
-                                      }
+                                    </div>
+                                  `
+                                  : 'Administrador'
+                              }
 
-                                    </button>
+                            </td>
 
-                                  </div>
-                                `
-                                : 'Administrador'
-                            }
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="6">
+                      No hay usuarios registrados.
+                    </td>
+                  </tr>
+                `
+            }
 
-                          </td>
+          </tbody>
 
-                        </tr>
-                      `;
+        </table>
 
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="6">
-
-                    No hay usuarios registrados.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $('#adminNewUser')
     ?.addEventListener(
       'click',
       function () {
-
         openNewUser(
           services
         );
-
       }
     );
 
@@ -3477,13 +4292,10 @@ function renderAdminUsers(data) {
   $$('.toggle-user')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           async function () {
-
             try {
-
               await apiCall(
                 'adminSetUserStatus',
                 [
@@ -3493,28 +4305,21 @@ function renderAdminUsers(data) {
                 ]
               );
 
-
               showToast(
                 'Estado actualizado.'
               );
-
 
               await refreshAdminSection(
                 'users'
               );
 
-
             } catch (error) {
-
               showToast(
                 error.message
               );
-
             }
-
           }
         );
-
       }
     );
 
@@ -3522,42 +4327,29 @@ function renderAdminUsers(data) {
   $$('.reset-user')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             openResetPassword(
               button.dataset.id,
               button.dataset.user
             );
-
           }
         );
-
       }
     );
-
 }
 
 
-// =========================================================
-// NUEVO USUARIO
-// =========================================================
-
 function openNewUser(services) {
-
   const activeServices =
     services.filter(
       function (service) {
-
         return asBool(
           service.activo
         );
-
       }
     );
-
 
   openModal(`
 
@@ -3572,31 +4364,26 @@ function openNewUser(services) {
     >
 
       <label>
-
         Nombre
 
         <input
           id="usrName"
           required
         >
-
       </label>
 
 
       <label>
-
         Usuario
 
         <input
           id="usrUser"
           required
         >
-
       </label>
 
 
       <label>
-
         Contraseña temporal
 
         <input
@@ -3605,12 +4392,10 @@ function openNewUser(services) {
           minlength="8"
           required
         >
-
       </label>
 
 
       <label>
-
         Servicio
 
         <select
@@ -3626,29 +4411,23 @@ function openNewUser(services) {
             activeServices
               .map(
                 function (service) {
-
                   return `
-
                     <option
                       value="${esc(
                         service.idServicio
                       )}"
                     >
-
                       ${esc(
                         service.nombreServicio
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
@@ -3656,9 +4435,7 @@ function openNewUser(services) {
         type="submit"
         class="button primary"
       >
-
         Crear usuario
-
       </button>
 
     </form>
@@ -3669,17 +4446,13 @@ function openNewUser(services) {
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminCreateServiceUser',
             [
               state.token,
-
               {
                 nombre:
                   $('#usrName')
@@ -3702,43 +4475,30 @@ function openNewUser(services) {
             ]
           );
 
-
           showToast(
             'Usuario creado.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'users'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
-
-// =========================================================
-// RESET CONTRASEÑA
-// =========================================================
 
 function openResetPassword(
   userId,
   username
 ) {
-
   openModal(`
 
     <h2>
@@ -3747,17 +4507,10 @@ function openResetPassword(
 
 
     <p>
-
       Usuario:
-
       <strong>
-
-        ${esc(
-          username
-        )}
-
+        ${esc(username)}
       </strong>
-
     </p>
 
 
@@ -3767,7 +4520,6 @@ function openResetPassword(
     >
 
       <label>
-
         Nueva contraseña temporal
 
         <input
@@ -3776,12 +4528,10 @@ function openResetPassword(
           minlength="8"
           required
         >
-
       </label>
 
 
       <label>
-
         Confirmar contraseña
 
         <input
@@ -3790,7 +4540,6 @@ function openResetPassword(
           minlength="8"
           required
         >
-
       </label>
 
 
@@ -3798,9 +4547,7 @@ function openResetPassword(
         type="submit"
         class="button primary"
       >
-
         Restablecer contraseña
-
       </button>
 
     </form>
@@ -3811,36 +4558,28 @@ function openResetPassword(
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
-
 
         const password =
           $('#resetPasswordValue')
             .value;
 
-
         const confirm =
           $('#resetPasswordConfirm')
             .value;
-
 
         if (
           password !==
           confirm
         ) {
-
           showToast(
             'Las contraseñas no coinciden.'
           );
 
           return;
-
         }
 
-
         try {
-
           await apiCall(
             'adminResetUserPassword',
             [
@@ -3850,26 +4589,19 @@ function openResetPassword(
             ]
           );
 
-
           showToast(
             'Contraseña actualizada.'
           );
 
-
           closeModal();
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
@@ -3878,7 +4610,6 @@ function openResetPassword(
 // =========================================================
 
 function renderAdminUnits(data) {
-
   const units =
     Array.isArray(
       data.units
@@ -3886,168 +4617,137 @@ function renderAdminUnits(data) {
       ? data.units
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title admin-section-title">
 
-    <div class="section-title admin-section-title">
+        <div>
 
-      <div>
+          <h3>
+            Unidades
+          </h3>
 
-        <h3>
-          Unidades
-        </h3>
+          <div class="muted">
+            Unidades de Respuesta a Emergencias.
+          </div>
 
-        <div class="muted">
-          Unidades de Respuesta a Emergencias.
         </div>
+
+
+        <button
+          type="button"
+          id="adminNewUnit"
+          class="button primary"
+        >
+          Nueva unidad
+        </button>
 
       </div>
 
 
-      <button
-        type="button"
-        id="adminNewUnit"
-        class="button primary"
-      >
+      <div class="table-wrap">
 
-        Nueva unidad
+        <table>
 
-      </button>
-
-    </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Código</th>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th>Servicio</th>
-            <th>Plantilla</th>
-            <th>Estado</th>
-          </tr>
-
-        </thead>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Servicio</th>
+              <th>Plantilla</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
 
 
-        <tbody>
+          <tbody>
 
-          ${
-            units.length
-              ? units
-                  .map(
-                    function (unit) {
+            ${
+              units.length
+                ? units
+                    .map(
+                      function (unit) {
+                        return `
+                          <tr>
 
-                      return `
+                            <td>
+                              <strong>
+                                ${esc(
+                                  unit.codigo
+                                )}
+                              </strong>
+                            </td>
 
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                unit.codigo
+                                unit.nombre
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
+                              ${esc(
+                                adminTypeName(
+                                  unit.idTipoUnidad,
+                                  data.types ||
+                                  []
+                                )
+                              )}
+                            </td>
 
-                          </td>
+                            <td>
+                              ${esc(
+                                adminServiceName(
+                                  unit.idServicio,
+                                  data.services ||
+                                  []
+                                )
+                              )}
+                            </td>
 
+                            <td>
+                              ${esc(
+                                adminTemplateName(
+                                  unit.idPlantilla,
+                                  data.templates ||
+                                  []
+                                )
+                              )}
+                            </td>
 
-                          <td>
+                            <td>
+                              ${statusBadge(
+                                unit.estado
+                              )}
+                            </td>
 
-                            ${esc(
-                              unit.nombre
-                            )}
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="6">
+                      No hay unidades registradas.
+                    </td>
+                  </tr>
+                `
+            }
 
-                          </td>
+          </tbody>
 
+        </table>
 
-                          <td>
-
-                            ${esc(
-                              adminTypeName(
-                                unit.idTipoUnidad,
-                                data.types ||
-                                []
-                              )
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${esc(
-                              adminServiceName(
-                                unit.idServicio,
-                                data.services ||
-                                []
-                              )
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${esc(
-                              adminTemplateName(
-                                unit.idPlantilla,
-                                data.templates ||
-                                []
-                              )
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${statusBadge(
-                              unit.estado
-                            )}
-
-                          </td>
-
-                        </tr>
-                      `;
-
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="6">
-
-                    No hay unidades registradas.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $('#adminNewUnit')
     ?.addEventListener(
       'click',
       function () {
-
         openNewUnit(
           data.services ||
           [],
@@ -4058,34 +4758,24 @@ function renderAdminUnits(data) {
           data.templates ||
           []
         );
-
       }
     );
-
 }
 
-
-// =========================================================
-// NUEVA UNIDAD
-// =========================================================
 
 function openNewUnit(
   services,
   types,
   templates
 ) {
-
   const activeServices =
     services.filter(
       function (service) {
-
         return asBool(
           service.activo
         );
-
       }
     );
-
 
   openModal(`
 
@@ -4100,38 +4790,32 @@ function openNewUnit(
     >
 
       <label>
-
         Código institucional
 
         <input
           id="uniCode"
           required
         >
-
       </label>
 
 
       <label>
-
         Nombre
 
         <input
           id="uniName"
           required
         >
-
       </label>
 
 
       <label>
-
         Tipo
 
         <select
           id="uniType"
           required
         >
-
           <option value="">
             Seleccione
           </option>
@@ -4140,41 +4824,33 @@ function openNewUnit(
             types
               .map(
                 function (type) {
-
                   return `
-
                     <option
                       value="${esc(
                         type.idTipoUnidad
                       )}"
                     >
-
                       ${esc(
                         type.nombre
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
       <label>
-
         Servicio
 
         <select
           id="uniSvc"
           required
         >
-
           <option value="">
             Seleccione
           </option>
@@ -4183,51 +4859,41 @@ function openNewUnit(
             activeServices
               .map(
                 function (service) {
-
                   return `
-
                     <option
                       value="${esc(
                         service.idServicio
                       )}"
                     >
-
                       ${esc(
                         service.nombreServicio
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
       <label>
-
         Ubicación
 
         <input
           id="uniLocation"
         >
-
       </label>
 
 
       <label>
-
         Plantilla
 
         <select
           id="uniTpl"
         >
-
           <option value="">
             Sin plantilla
           </option>
@@ -4236,33 +4902,26 @@ function openNewUnit(
             templates
               .map(
                 function (template) {
-
                   return `
-
                     <option
                       value="${esc(
                         template.idPlantilla
                       )}"
                     >
-
                       ${esc(
                         template.nombre
                       )}
-
                       v${esc(
                         template.version
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
@@ -4270,9 +4929,7 @@ function openNewUnit(
         type="submit"
         class="button primary"
       >
-
         Crear unidad
-
       </button>
 
     </form>
@@ -4283,17 +4940,13 @@ function openNewUnit(
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminCreateUnit',
             [
               state.token,
-
               {
                 codigo:
                   $('#uniCode')
@@ -4325,40 +4978,31 @@ function openNewUnit(
             ]
           );
 
-
           showToast(
             'Unidad creada.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'units'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
 // =========================================================
-// CATÁLOGO
+// ADMIN - CATÁLOGO
 // =========================================================
 
 function renderAdminCatalog(data) {
-
   const catalog =
     Array.isArray(
       data.catalog
@@ -4366,163 +5010,133 @@ function renderAdminCatalog(data) {
       ? data.catalog
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title admin-section-title">
 
-    <div class="section-title admin-section-title">
+        <div>
 
-      <div>
+          <h3>
+            Catálogo maestro
+          </h3>
 
-        <h3>
-          Catálogo maestro
-        </h3>
+          <div class="muted">
+            Insumos institucionales.
+          </div>
 
-        <div class="muted">
-          Insumos institucionales.
         </div>
+
+
+        <button
+          type="button"
+          id="adminNewItem"
+          class="button primary"
+        >
+          Nuevo insumo
+        </button>
 
       </div>
 
 
-      <button
-        type="button"
-        id="adminNewItem"
-        class="button primary"
-      >
+      <div class="table-wrap">
 
-        Nuevo insumo
+        <table>
 
-      </button>
-
-    </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Código</th>
-            <th>Insumo</th>
-            <th>Categoría</th>
-            <th>Unidad</th>
-            <th>Crítico</th>
-            <th>Estado</th>
-          </tr>
-
-        </thead>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Insumo</th>
+              <th>Categoría</th>
+              <th>Unidad</th>
+              <th>Crítico</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
 
 
-        <tbody>
+          <tbody>
 
-          ${
-            catalog.length
-              ? catalog
-                  .map(
-                    function (item) {
+            ${
+              catalog.length
+                ? catalog
+                    .map(
+                      function (item) {
+                        return `
+                          <tr>
 
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            ${esc(
-                              item.codigo
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                item.nombre
+                                item.codigo
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
+                              <strong>
+                                ${esc(
+                                  item.nombre
+                                )}
+                              </strong>
+                            </td>
 
-                          </td>
+                            <td>
+                              ${esc(
+                                item.categoria ||
+                                '-'
+                              )}
+                            </td>
 
+                            <td>
+                              ${esc(
+                                item.unidadMedida ||
+                                '-'
+                              )}
+                            </td>
 
-                          <td>
+                            <td>
+                              ${
+                                asBool(
+                                  item.esCritico
+                                )
+                                  ? 'Sí'
+                                  : 'No'
+                              }
+                            </td>
 
-                            ${esc(
-                              item.categoria ||
-                              '-'
-                            )}
+                            <td>
+                              ${
+                                asBool(
+                                  item.activo
+                                )
+                                  ? statusBadge(
+                                      'ACTIVO'
+                                    )
+                                  : statusBadge(
+                                      'INACTIVO'
+                                    )
+                              }
+                            </td>
 
-                          </td>
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="6">
+                      No hay insumos registrados.
+                    </td>
+                  </tr>
+                `
+            }
 
+          </tbody>
 
-                          <td>
+        </table>
 
-                            ${esc(
-                              item.unidadMedida ||
-                              '-'
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${
-                              asBool(
-                                item.esCritico
-                              )
-                                ? 'Sí'
-                                : 'No'
-                            }
-
-                          </td>
-
-
-                          <td>
-
-                            ${
-                              asBool(
-                                item.activo
-                              )
-                                ? statusBadge(
-                                    'ACTIVO'
-                                  )
-                                : statusBadge(
-                                    'INACTIVO'
-                                  )
-                            }
-
-                          </td>
-
-                        </tr>
-                      `;
-
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="6">
-
-                    No hay insumos registrados.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $('#adminNewItem')
@@ -4530,16 +5144,10 @@ function renderAdminCatalog(data) {
       'click',
       openNewItem
     );
-
 }
 
 
-// =========================================================
-// NUEVO INSUMO
-// =========================================================
-
 function openNewItem() {
-
   openModal(`
 
     <h2>
@@ -4553,55 +5161,46 @@ function openNewItem() {
     >
 
       <label>
-
         Código
 
         <input
           id="itmCode"
           required
         >
-
       </label>
 
 
       <label>
-
         Nombre
 
         <input
           id="itmName"
           required
         >
-
       </label>
 
 
       <label>
-
         Categoría
 
         <input
           id="itmCat"
           required
         >
-
       </label>
 
 
       <label>
-
         Unidad de medida
 
         <input
           id="itmUnit"
           required
         >
-
       </label>
 
 
       <label>
-
         Insumo crítico
 
         <input
@@ -4609,7 +5208,6 @@ function openNewItem() {
           type="checkbox"
           style="width:auto"
         >
-
       </label>
 
 
@@ -4617,9 +5215,7 @@ function openNewItem() {
         type="submit"
         class="button primary"
       >
-
         Crear insumo
-
       </button>
 
     </form>
@@ -4630,17 +5226,13 @@ function openNewItem() {
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminCreateItem',
             [
               state.token,
-
               {
                 codigo:
                   $('#itmCode')
@@ -4669,40 +5261,31 @@ function openNewItem() {
             ]
           );
 
-
           showToast(
             'Insumo creado.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'catalog'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
 // =========================================================
-// PLANTILLAS
+// ADMIN - PLANTILLAS
 // =========================================================
 
 function renderAdminTemplates(data) {
-
   const templates =
     Array.isArray(
       data.templates
@@ -4710,163 +5293,134 @@ function renderAdminTemplates(data) {
       ? data.templates
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title admin-section-title">
 
-    <div class="section-title admin-section-title">
+        <div>
 
-      <div>
+          <h3>
+            Plantillas
+          </h3>
 
-        <h3>
-          Plantillas
-        </h3>
+          <div class="muted">
+            Composición estandarizada de las unidades.
+          </div>
 
-        <div class="muted">
-          Composición estandarizada de las unidades.
         </div>
+
+
+        <button
+          type="button"
+          id="adminNewTemplate"
+          class="button primary"
+        >
+          Nueva plantilla
+        </button>
 
       </div>
 
 
-      <button
-        type="button"
-        id="adminNewTemplate"
-        class="button primary"
-      >
+      <div class="table-wrap">
 
-        Nueva plantilla
+        <table>
 
-      </button>
-
-    </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Plantilla</th>
-            <th>Versión</th>
-            <th>Tipo</th>
-            <th>Vigencia</th>
-            <th>Acción</th>
-          </tr>
-
-        </thead>
+          <thead>
+            <tr>
+              <th>Plantilla</th>
+              <th>Versión</th>
+              <th>Tipo</th>
+              <th>Vigencia</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
 
 
-        <tbody>
+          <tbody>
 
-          ${
-            templates.length
-              ? templates
-                  .map(
-                    function (template) {
+            ${
+              templates.length
+                ? templates
+                    .map(
+                      function (template) {
+                        return `
+                          <tr>
 
-                      return `
+                            <td>
+                              <strong>
+                                ${esc(
+                                  template.nombre
+                                )}
+                              </strong>
+                            </td>
 
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                template.nombre
+                                template.version
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
+                              ${esc(
+                                adminTypeName(
+                                  template.idTipoUnidad,
+                                  data.types ||
+                                  []
+                                )
+                              )}
+                            </td>
 
-                          </td>
+                            <td>
+                              ${fmtDate(
+                                template.fechaVigencia
+                              )}
+                            </td>
 
+                            <td>
 
-                          <td>
+                              <button
+                                type="button"
+                                class="button secondary add-template-item"
+                                data-id="${esc(
+                                  template.idPlantilla
+                                )}"
+                              >
+                                Agregar contenido
+                              </button>
 
-                            ${esc(
-                              template.version
-                            )}
+                            </td>
 
-                          </td>
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="5">
+                      No hay plantillas registradas.
+                    </td>
+                  </tr>
+                `
+            }
 
+          </tbody>
 
-                          <td>
+        </table>
 
-                            ${esc(
-                              adminTypeName(
-                                template.idTipoUnidad,
-                                data.types ||
-                                []
-                              )
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${fmtDate(
-                              template.fechaVigencia
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            <button
-                              type="button"
-                              class="button secondary add-template-item"
-                              data-id="${esc(
-                                template.idPlantilla
-                              )}"
-                            >
-
-                              Agregar contenido
-
-                            </button>
-
-                          </td>
-
-                        </tr>
-                      `;
-
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="5">
-
-                    No hay plantillas registradas.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $('#adminNewTemplate')
     ?.addEventListener(
       'click',
       function () {
-
         openNewTemplate(
           data.types ||
           []
         );
-
       }
     );
 
@@ -4874,32 +5428,22 @@ function renderAdminTemplates(data) {
   $$('.add-template-item')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           function () {
-
             openTemplateItem(
               button.dataset.id,
               data.catalog ||
               []
             );
-
           }
         );
-
       }
     );
-
 }
 
 
-// =========================================================
-// NUEVA PLANTILLA
-// =========================================================
-
 function openNewTemplate(types) {
-
   openModal(`
 
     <h2>
@@ -4913,19 +5457,16 @@ function openNewTemplate(types) {
     >
 
       <label>
-
         Nombre
 
         <input
           id="tplName"
           required
         >
-
       </label>
 
 
       <label>
-
         Versión
 
         <input
@@ -4933,19 +5474,16 @@ function openNewTemplate(types) {
           value="1.0"
           required
         >
-
       </label>
 
 
       <label>
-
         Tipo
 
         <select
           id="tplType"
           required
         >
-
           <option value="">
             Seleccione
           </option>
@@ -4954,41 +5492,33 @@ function openNewTemplate(types) {
             types
               .map(
                 function (type) {
-
                   return `
-
                     <option
                       value="${esc(
                         type.idTipoUnidad
                       )}"
                     >
-
                       ${esc(
                         type.nombre
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
       <label>
-
         Fecha de vigencia
 
         <input
           id="tplDate"
           type="date"
         >
-
       </label>
 
 
@@ -4996,9 +5526,7 @@ function openNewTemplate(types) {
         type="submit"
         class="button primary"
       >
-
         Crear plantilla
-
       </button>
 
     </form>
@@ -5009,17 +5537,13 @@ function openNewTemplate(types) {
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminCreateTemplate',
             [
               state.token,
-
               {
                 nombre:
                   $('#tplName')
@@ -5042,43 +5566,30 @@ function openNewTemplate(types) {
             ]
           );
 
-
           showToast(
             'Plantilla creada.'
           );
 
-
           closeModal();
-
 
           await refreshAdminSection(
             'templates'
           );
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
-
-// =========================================================
-// AGREGAR CONTENIDO A PLANTILLA
-// =========================================================
 
 function openTemplateItem(
   templateId,
   catalog
 ) {
-
   openModal(`
 
     <h2>
@@ -5092,7 +5603,6 @@ function openTemplateItem(
     >
 
       <label>
-
         Insumo
 
         <select
@@ -5108,51 +5618,40 @@ function openTemplateItem(
             catalog
               .map(
                 function (item) {
-
                   return `
-
                     <option
                       value="${esc(
                         item.idInsumo
                       )}"
                     >
-
                       ${esc(
                         item.codigo
                       )}
-
                       ·
-
                       ${esc(
                         item.nombre
                       )}
-
                     </option>
                   `;
-
                 }
               )
               .join('')
           }
 
         </select>
-
       </label>
 
 
       <label>
-
         Compartimiento
 
         <input
           id="tpiComp"
         >
-
       </label>
 
 
       <label>
-
         Cantidad requerida
 
         <input
@@ -5162,12 +5661,10 @@ function openTemplateItem(
           value="1"
           required
         >
-
       </label>
 
 
       <label>
-
         Cantidad mínima
 
         <input
@@ -5176,12 +5673,10 @@ function openTemplateItem(
           min="0"
           value="1"
         >
-
       </label>
 
 
       <label>
-
         Crítico
 
         <input
@@ -5189,12 +5684,10 @@ function openTemplateItem(
           type="checkbox"
           style="width:auto"
         >
-
       </label>
 
 
       <label>
-
         Orden
 
         <input
@@ -5202,7 +5695,6 @@ function openTemplateItem(
           type="number"
           value="0"
         >
-
       </label>
 
 
@@ -5210,9 +5702,7 @@ function openTemplateItem(
         type="submit"
         class="button primary"
       >
-
         Agregar insumo
-
       </button>
 
     </form>
@@ -5223,17 +5713,13 @@ function openTemplateItem(
     ?.addEventListener(
       'submit',
       async function (event) {
-
         event.preventDefault();
 
-
         try {
-
           await apiCall(
             'adminAddTemplateItem',
             [
               state.token,
-
               {
                 idPlantilla:
                   templateId,
@@ -5272,35 +5758,27 @@ function openTemplateItem(
             ]
           );
 
-
           showToast(
             'Insumo agregado.'
           );
 
-
           closeModal();
 
-
         } catch (error) {
-
           showToast(
             error.message
           );
-
         }
-
       }
     );
-
 }
 
 
 // =========================================================
-// FRECUENCIAS
+// ADMIN - FRECUENCIAS
 // =========================================================
 
 function renderAdminTypes(data) {
-
   const types =
     Array.isArray(
       data.types
@@ -5308,127 +5786,112 @@ function renderAdminTypes(data) {
       ? data.types
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title">
 
-    <div class="section-title">
+        <div>
 
-      <div>
+          <h3>
+            Frecuencias
+          </h3>
 
-        <h3>
-          Frecuencias
-        </h3>
+          <div class="muted">
+            Frecuencia de visorías y controles preventivos.
+          </div>
 
-        <div class="muted">
-          Frecuencia de visorías y controles preventivos.
         </div>
 
       </div>
 
-    </div>
+
+      <div class="grid units-grid">
+
+        ${
+          types.length
+            ? types
+                .map(
+                  function (type) {
+                    return `
+
+                      <div class="card">
+
+                        <h3>
+                          ${esc(
+                            type.nombre
+                          )}
+                        </h3>
 
 
-    <div class="grid units-grid">
+                        <label>
+                          Visoría cada (horas)
 
-      ${
-        types.length
-          ? types
-              .map(
-                function (type) {
-
-                  return `
-
-                    <div class="card">
-
-                      <h3>
-
-                        ${esc(
-                          type.nombre
-                        )}
-
-                      </h3>
+                          <input
+                            class="type-visoria"
+                            data-id="${esc(
+                              type.idTipoUnidad
+                            )}"
+                            type="number"
+                            min="1"
+                            value="${esc(
+                              type.frecuenciaVisoriaHoras
+                            )}"
+                          >
+                        </label>
 
 
-                      <label>
+                        <label>
+                          Preventivo cada (días)
 
-                        Visoría cada (horas)
+                          <input
+                            class="type-preventivo"
+                            data-id="${esc(
+                              type.idTipoUnidad
+                            )}"
+                            type="number"
+                            min="1"
+                            value="${esc(
+                              type.frecuenciaPreventivoDias
+                            )}"
+                          >
+                        </label>
 
-                        <input
-                          class="type-visoria"
+
+                        <button
+                          type="button"
+                          class="button primary save-type"
                           data-id="${esc(
                             type.idTipoUnidad
                           )}"
-                          type="number"
-                          min="1"
-                          value="${esc(
-                            type.frecuenciaVisoriaHoras
-                          )}"
                         >
+                          Guardar
+                        </button>
 
-                      </label>
+                      </div>
+                    `;
+                  }
+                )
+                .join('')
+            : `
+              <div class="empty-state">
+                No hay tipos configurados.
+              </div>
+            `
+        }
 
-
-                      <label>
-
-                        Preventivo cada (días)
-
-                        <input
-                          class="type-preventivo"
-                          data-id="${esc(
-                            type.idTipoUnidad
-                          )}"
-                          type="number"
-                          min="1"
-                          value="${esc(
-                            type.frecuenciaPreventivoDias
-                          )}"
-                        >
-
-                      </label>
-
-
-                      <button
-                        type="button"
-                        class="button primary save-type"
-                        data-id="${esc(
-                          type.idTipoUnidad
-                        )}"
-                      >
-
-                        Guardar
-
-                      </button>
-
-                    </div>
-                  `;
-
-                }
-              )
-              .join('')
-          : `
-            <div class="empty-state">
-
-              No hay tipos configurados.
-
-            </div>
-          `
-      }
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $$('.save-type')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           async function () {
-
             const id =
               button.dataset.id;
-
 
             const visoria =
               document.querySelector(
@@ -5437,7 +5900,6 @@ function renderAdminTypes(data) {
                 '"]'
               );
 
-
             const preventivo =
               document.querySelector(
                 '.type-preventivo[data-id="' +
@@ -5445,9 +5907,7 @@ function renderAdminTypes(data) {
                 '"]'
               );
 
-
             try {
-
               await apiCall(
                 'adminUpdateUnitType',
                 [
@@ -5469,40 +5929,31 @@ function renderAdminTypes(data) {
                 ]
               );
 
-
               showToast(
                 'Frecuencia actualizada.'
               );
-
 
               await refreshAdminSection(
                 'types'
               );
 
-
             } catch (error) {
-
               showToast(
                 error.message
               );
-
             }
-
           }
         );
-
       }
     );
-
 }
 
 
 // =========================================================
-// CONFIGURACIÓN
+// ADMIN - CONFIGURACIÓN
 // =========================================================
 
 function renderAdminConfig(data) {
-
   const config =
     Array.isArray(
       data.config
@@ -5510,148 +5961,125 @@ function renderAdminConfig(data) {
       ? data.config
       : [];
 
+  $('#adminPanel')
+    .innerHTML = `
 
-  $('#adminPanel').innerHTML = `
+      <div class="section-title">
 
-    <div class="section-title">
+        <div>
 
-      <div>
+          <h3>
+            Configuración general
+          </h3>
 
-        <h3>
-          Configuración general
-        </h3>
+          <div class="muted">
+            Parámetros institucionales de SIGURE.
+          </div>
 
-        <div class="muted">
-          Parámetros institucionales de SIGURE.
         </div>
 
       </div>
 
-    </div>
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Parámetro</th>
+              <th>Valor</th>
+              <th>Descripción</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
 
 
-    <div class="table-wrap">
+          <tbody>
 
-      <table>
+            ${
+              config.length
+                ? config
+                    .map(
+                      function (
+                        row,
+                        index
+                      ) {
+                        return `
+                          <tr>
 
-        <thead>
+                            <td>
+                              <strong>
+                                ${esc(
+                                  row.clave
+                                )}
+                              </strong>
+                            </td>
 
-          <tr>
-            <th>Parámetro</th>
-            <th>Valor</th>
-            <th>Descripción</th>
-            <th>Acción</th>
-          </tr>
+                            <td>
+                              <input
+                                id="configValue${index}"
+                                value="${esc(
+                                  row.valor
+                                )}"
+                              >
+                            </td>
 
-        </thead>
-
-
-        <tbody>
-
-          ${
-            config.length
-              ? config
-                  .map(
-                    function (row, index) {
-
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
+                            <td>
                               ${esc(
-                                row.clave
+                                row.descripcion ||
+                                ''
                               )}
+                            </td>
 
-                            </strong>
+                            <td>
 
-                          </td>
+                              <button
+                                type="button"
+                                class="button secondary save-config"
+                                data-key="${esc(
+                                  row.clave
+                                )}"
+                                data-index="${index}"
+                              >
+                                Guardar
+                              </button>
 
+                            </td>
 
-                          <td>
+                          </tr>
+                        `;
+                      }
+                    )
+                    .join('')
+                : `
+                  <tr>
+                    <td colspan="4">
+                      No hay parámetros configurados.
+                    </td>
+                  </tr>
+                `
+            }
 
-                            <input
-                              id="configValue${index}"
-                              value="${esc(
-                                row.valor
-                              )}"
-                            >
+          </tbody>
 
-                          </td>
+        </table>
 
-
-                          <td>
-
-                            ${esc(
-                              row.descripcion ||
-                              ''
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            <button
-                              type="button"
-                              class="button secondary save-config"
-                              data-key="${esc(
-                                row.clave
-                              )}"
-                              data-index="${index}"
-                            >
-
-                              Guardar
-
-                            </button>
-
-                          </td>
-
-                        </tr>
-                      `;
-
-                    }
-                  )
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="4">
-
-                    No hay parámetros configurados.
-
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+      </div>
+    `;
 
 
   $$('.save-config')
     .forEach(
       function (button) {
-
         button.addEventListener(
           'click',
           async function () {
-
             const key =
               button.dataset.key;
 
-
             const index =
               button.dataset.index;
-
 
             const input =
               document.getElementById(
@@ -5659,9 +6087,7 @@ function renderAdminConfig(data) {
                 index
               );
 
-
             try {
-
               await apiCall(
                 'adminSetConfiguration',
                 [
@@ -5671,31 +6097,23 @@ function renderAdminConfig(data) {
                 ]
               );
 
-
               showToast(
                 'Configuración actualizada.'
               );
-
 
               await refreshAdminSection(
                 'config'
               );
 
-
             } catch (error) {
-
               showToast(
                 error.message
               );
-
             }
-
           }
         );
-
       }
     );
-
 }
 
 
@@ -5707,31 +6125,23 @@ function adminServiceName(
   id,
   services
 ) {
-
   if (!id) {
-
     return 'Área de Calidad';
-
   }
-
 
   const service =
     services.find(
       function (item) {
-
         return (
           item.idServicio ===
           id
         );
-
       }
     );
-
 
   return service
     ? service.nombreServicio
     : '-';
-
 }
 
 
@@ -5739,24 +6149,19 @@ function adminTypeName(
   id,
   types
 ) {
-
   const type =
     types.find(
       function (item) {
-
         return (
           item.idTipoUnidad ===
           id
         );
-
       }
     );
-
 
   return type
     ? type.nombre
     : '-';
-
 }
 
 
@@ -5764,26 +6169,19 @@ function adminTemplateName(
   id,
   templates
 ) {
-
   if (!id) {
-
     return 'Sin plantilla';
-
   }
-
 
   const template =
     templates.find(
       function (item) {
-
         return (
           item.idPlantilla ===
           id
         );
-
       }
     );
-
 
   return template
     ? (
@@ -5792,5 +6190,4 @@ function adminTemplateName(
         template.version
       )
     : '-';
-
 }
