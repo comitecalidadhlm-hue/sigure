@@ -2,8 +2,13 @@
   "name": "sigure",
   "compatibility_date": "2026-08-14",
   "main": "src/index.js",
+
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
+  },
+
+  "vars": {
+    "APPS_SCRIPT_URL": "https://script.google.com/macros/s/AKfycbxX0gE2tbkN75TT5Sg5qR232Vdnzx3jcaQJOK5d0RvNAdIkocUs0REXysEfbca0zHSC/exec"
   }
 }
