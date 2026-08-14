@@ -1,7 +1,15 @@
 /*************************************************
  * SIGURE
- * public/app.js
+ * Sistema Integral de Gestión de Unidades de
+ * Respuesta a Emergencias
+ *
+ * Archivo: public/app.js
  *************************************************/
+
+
+// =========================================================
+// ESTADO GENERAL
+// =========================================================
 
 const state = {
   token: null,
@@ -30,156 +38,316 @@ function $(selector) {
 }
 
 function $$(selector) {
-  return Array.from(document.querySelectorAll(selector));
+  return Array.from(
+    document.querySelectorAll(selector)
+  );
 }
+
 
 function esc(value) {
-  return String(value ?? '').replace(/[&<>"']/g, function (c) {
-    return {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[c];
-  });
+
+  return String(value ?? '')
+    .replace(
+      /[&<>"']/g,
+      function (character) {
+
+        const map = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        };
+
+        return map[character];
+
+      }
+    );
+
 }
+
 
 function fmtDate(value) {
-  if (!value) return '-';
 
-  const date = new Date(value);
+  if (!value) {
+    return '-';
+  }
 
-  return Number.isNaN(date.getTime())
-    ? String(value)
-    : date.toLocaleString('es-AR');
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+
+    return String(value);
+
+  }
+
+
+  return date.toLocaleString(
+    'es-AR'
+  );
+
 }
 
+
 function asBool(value) {
+
   return (
     value === true ||
     String(value).toLowerCase() === 'true' ||
     String(value).toUpperCase() === 'VERDADERO'
   );
+
 }
 
-function statusBadge(status) {
-  const normalized = String(status || '').toUpperCase();
 
-  let css = 'warn';
+function statusBadge(status) {
+
+  const normalized =
+    String(status || '')
+      .toUpperCase();
+
+
+  let css =
+    'warn';
+
 
   if (
     [
       'OPERATIVA',
       'OPERATIVO',
       'ACTIVO',
-      'ACTIVA'
+      'ACTIVA',
+      'ABIERTO',
+      'ABIERTA'
     ].includes(normalized)
   ) {
-    css = 'ok';
+
+    css =
+      'ok';
+
   }
+
 
   if (
     [
       'NO_OPERATIVA',
       'FUERA_DE_SERVICIO',
       'INACTIVO',
-      'INACTIVA'
+      'INACTIVA',
+      'CERRADO',
+      'CERRADA'
     ].includes(normalized)
   ) {
-    css = 'danger';
+
+    css =
+      'danger';
+
   }
 
-  if (normalized === 'EN_REPOSICION') {
-    css = 'info';
+
+  if (
+    normalized ===
+    'EN_REPOSICION'
+  ) {
+
+    css =
+      'info';
+
   }
+
 
   return `
     <span class="status ${css}">
       ${esc(status || '-')}
     </span>
   `;
+
 }
+
 
 function showToast(message) {
-  const container = $('#toast');
+
+  const container =
+    $('#toast');
+
 
   if (!container) {
+
     alert(message);
+
     return;
+
   }
 
-  const toast = document.createElement('div');
 
-  toast.className = 'toast';
-  toast.textContent = message;
+  const toast =
+    document.createElement(
+      'div'
+    );
 
-  container.appendChild(toast);
 
-  setTimeout(function () {
-    toast.remove();
-  }, 3500);
+  toast.className =
+    'toast';
+
+
+  toast.textContent =
+    message;
+
+
+  container.appendChild(
+    toast
+  );
+
+
+  setTimeout(
+    function () {
+
+      toast.remove();
+
+    },
+    3500
+  );
+
 }
+
 
 function showLoginMessage(message) {
-  const element = $('#loginMessage');
 
-  if (!element) return;
+  const element =
+    $('#loginMessage');
 
-  if (!message) {
-    element.classList.add('hidden');
-    element.textContent = '';
+
+  if (!element) {
     return;
   }
 
-  element.textContent = message;
-  element.classList.remove('hidden');
+
+  if (!message) {
+
+    element.classList.add(
+      'hidden'
+    );
+
+    element.textContent =
+      '';
+
+    return;
+
+  }
+
+
+  element.textContent =
+    message;
+
+
+  element.classList.remove(
+    'hidden'
+  );
+
 }
+
 
 function openModal(html) {
-  const modal = $('#modal');
-  const body = $('#modalBody');
 
-  if (!modal || !body) return;
+  const modal =
+    $('#modal');
 
-  body.innerHTML = html;
-  modal.classList.remove('hidden');
+  const body =
+    $('#modalBody');
+
+
+  if (
+    !modal ||
+    !body
+  ) {
+
+    return;
+
+  }
+
+
+  body.innerHTML =
+    html;
+
+
+  modal.classList.remove(
+    'hidden'
+  );
+
 }
 
+
 function closeModal() {
-  const modal = $('#modal');
-  const body = $('#modalBody');
+
+  const modal =
+    $('#modal');
+
+  const body =
+    $('#modalBody');
+
 
   if (modal) {
-    modal.classList.add('hidden');
+
+    modal.classList.add(
+      'hidden'
+    );
+
   }
 
+
   if (body) {
-    body.innerHTML = '';
+
+    body.innerHTML =
+      '';
+
   }
+
 }
 
 
 // =========================================================
 // API
+// CLOUDFLARE -> APPS SCRIPT
 // =========================================================
 
-async function apiCall(action, args = []) {
+async function apiCall(
+  action,
+  args = []
+) {
 
-  const response = await fetch('/api', {
+  const response =
+    await fetch(
+      '/api',
+      {
 
-    method: 'POST',
+        method:
+          'POST',
 
-    headers: {
-      'Content-Type': 'application/json'
-    },
+        headers: {
+          'Content-Type':
+            'application/json'
+        },
 
-    body: JSON.stringify({
-      action: action,
-      args: Array.isArray(args) ? args : []
-    })
+        body:
+          JSON.stringify({
+            action:
+              action,
 
-  });
+            args:
+              Array.isArray(args)
+                ? args
+                : []
+          })
+
+      }
+    );
 
 
   let payload;
@@ -187,7 +355,8 @@ async function apiCall(action, args = []) {
 
   try {
 
-    payload = await response.json();
+    payload =
+      await response.json();
 
   } catch (error) {
 
@@ -208,7 +377,10 @@ async function apiCall(action, args = []) {
   }
 
 
-  if (payload.ok !== true) {
+  if (
+    payload.ok !==
+    true
+  ) {
 
     throw new Error(
       payload.error ||
@@ -218,7 +390,8 @@ async function apiCall(action, args = []) {
   }
 
 
-  const apiResult = payload.result;
+  const apiResult =
+    payload.result;
 
 
   if (!apiResult) {
@@ -230,7 +403,10 @@ async function apiCall(action, args = []) {
   }
 
 
-  if (apiResult.ok !== true) {
+  if (
+    apiResult.ok !==
+    true
+  ) {
 
     throw new Error(
       apiResult.error ||
@@ -241,6 +417,7 @@ async function apiCall(action, args = []) {
 
 
   return apiResult.data;
+
 }
 
 
@@ -262,19 +439,25 @@ function bindBaseEvents() {
       'click',
       function () {
 
-        const input = $('#loginPass');
+        const input =
+          $('#loginPass');
 
-        if (!input) return;
+
+        if (!input) {
+          return;
+        }
 
 
         input.type =
-          input.type === 'password'
+          input.type ===
+          'password'
             ? 'text'
             : 'password';
 
 
         this.textContent =
-          input.type === 'password'
+          input.type ===
+          'password'
             ? 'Ver'
             : 'Ocultar';
 
@@ -309,7 +492,9 @@ function bindBaseEvents() {
 
         $('.sidebar')
           ?.classList
-          .toggle('open');
+          .toggle(
+            'open'
+          );
 
       }
     );
@@ -330,25 +515,30 @@ function bindBaseEvents() {
 
 
   $$('#nav [data-view]')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        function () {
+        button.addEventListener(
+          'click',
+          function () {
 
-          $('.sidebar')
-            ?.classList
-            .remove('open');
+            $('.sidebar')
+              ?.classList
+              .remove(
+                'open'
+              );
 
 
-          renderView(
-            button.dataset.view
-          );
+            renderView(
+              button.dataset.view
+            );
 
-        }
-      );
+          }
+        );
 
-    });
+      }
+    );
+
 }
 
 
@@ -360,14 +550,19 @@ async function onLogin(event) {
 
   event.preventDefault();
 
-  showLoginMessage('');
+
+  showLoginMessage(
+    ''
+  );
 
 
   const button =
     $('#loginButton');
 
+
   const userInput =
     $('#loginUser');
+
 
   const passwordInput =
     $('#loginPass');
@@ -391,11 +586,15 @@ async function onLogin(event) {
   const usuario =
     userInput.value.trim();
 
+
   const password =
     passwordInput.value;
 
 
-  if (!usuario || !password) {
+  if (
+    !usuario ||
+    !password
+  ) {
 
     showLoginMessage(
       'Ingrese usuario y contraseña.'
@@ -406,7 +605,9 @@ async function onLogin(event) {
   }
 
 
-  button.disabled = true;
+  button.disabled =
+    true;
+
 
   button.textContent =
     'Ingresando...';
@@ -440,11 +641,13 @@ async function onLogin(event) {
     state.token =
       result.token;
 
+
     state.user =
       result.user;
 
 
     saveSession();
+
 
     enterApp();
 
@@ -463,12 +666,15 @@ async function onLogin(event) {
 
   } finally {
 
-    button.disabled = false;
+    button.disabled =
+      false;
+
 
     button.textContent =
       'Ingresar a SIGURE';
 
   }
+
 }
 
 
@@ -480,25 +686,33 @@ async function onLogout() {
 
   try {
 
-    if (state.token) {
+    if (
+      state.token
+    ) {
 
       await apiCall(
         'logout',
-        [state.token]
+        [
+          state.token
+        ]
       );
 
     }
 
   } catch (error) {
 
-    console.warn(error);
+    console.warn(
+      error
+    );
 
   }
 
 
   clearSession();
 
+
   window.location.reload();
+
 }
 
 
@@ -520,14 +734,22 @@ function saveSession() {
       state.user
     )
   );
+
 }
 
 
 function clearSession() {
 
-  state.token = null;
-  state.user = null;
-  state.adminData = null;
+  state.token =
+    null;
+
+
+  state.user =
+    null;
+
+
+  state.adminData =
+    null;
 
 
   sessionStorage.removeItem(
@@ -538,6 +760,7 @@ function clearSession() {
   sessionStorage.removeItem(
     'sigure_user'
   );
+
 }
 
 
@@ -555,7 +778,10 @@ async function restoreSession() {
     );
 
 
-  if (!token || !rawUser) {
+  if (
+    !token ||
+    !rawUser
+  ) {
 
     showLogin();
 
@@ -566,7 +792,9 @@ async function restoreSession() {
 
   try {
 
-    state.token = token;
+    state.token =
+      token;
+
 
     state.user =
       JSON.parse(
@@ -576,7 +804,9 @@ async function restoreSession() {
 
     await apiCall(
       'getDashboard',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
@@ -592,9 +822,11 @@ async function restoreSession() {
 
     clearSession();
 
+
     showLogin();
 
   }
+
 }
 
 
@@ -602,12 +834,17 @@ function showLogin() {
 
   $('#appView')
     ?.classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   $('#loginView')
     ?.classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
+
 }
 
 
@@ -615,28 +852,42 @@ function enterApp() {
 
   $('#loginView')
     ?.classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   $('#appView')
     ?.classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 
-  if (!state.user) return;
+  if (
+    !state.user
+  ) {
+
+    return;
+
+  }
 
 
   const sessionName =
     $('#sessionName');
 
+
   const sidebarRole =
     $('#sidebarRole');
+
 
   const sessionService =
     $('#sessionService');
 
 
-  if (sessionName) {
+  if (
+    sessionName
+  ) {
 
     sessionName.textContent =
       state.user.nombre ||
@@ -646,20 +897,26 @@ function enterApp() {
   }
 
 
-  if (sidebarRole) {
+  if (
+    sidebarRole
+  ) {
 
     sidebarRole.textContent =
-      state.user.rol === 'CALIDAD'
+      state.user.rol ===
+      'CALIDAD'
         ? 'Administración institucional'
         : 'Gestión del servicio';
 
   }
 
 
-  if (sessionService) {
+  if (
+    sessionService
+  ) {
 
     sessionService.textContent =
-      state.user.rol === 'CALIDAD'
+      state.user.rol ===
+      'CALIDAD'
         ? 'Área de Calidad'
         : 'Usuario de servicio';
 
@@ -667,14 +924,18 @@ function enterApp() {
 
 
   $$('.admin-only')
-    .forEach(function (element) {
+    .forEach(
+      function (element) {
 
-      element.classList.toggle(
-        'hidden',
-        state.user.rol !== 'CALIDAD'
-      );
+        element.classList.toggle(
+          'hidden',
+          state.user.rol !==
+            'CALIDAD'
+        );
 
-    });
+      }
+    );
+
 }
 
 
@@ -685,11 +946,14 @@ function enterApp() {
 async function renderView(view) {
 
   if (
-    view === 'admin' &&
-    state.user?.rol !== 'CALIDAD'
+    view ===
+      'admin' &&
+    state.user?.rol !==
+      'CALIDAD'
   ) {
 
-    view = 'dashboard';
+    view =
+      'dashboard';
 
   }
 
@@ -699,14 +963,17 @@ async function renderView(view) {
 
 
   $$('#nav [data-view]')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.classList.toggle(
-        'active',
-        button.dataset.view === view
-      );
+        button.classList.toggle(
+          'active',
+          button.dataset.view ===
+            view
+        );
 
-    });
+      }
+    );
 
 
   const titles = {
@@ -753,35 +1020,50 @@ async function renderView(view) {
 
   try {
 
-    if (view === 'dashboard') {
+    if (
+      view ===
+      'dashboard'
+    ) {
 
       return await renderDashboard();
 
     }
 
 
-    if (view === 'units') {
+    if (
+      view ===
+      'units'
+    ) {
 
       return await renderUnits();
 
     }
 
 
-    if (view === 'alerts') {
+    if (
+      view ===
+      'alerts'
+    ) {
 
       return await renderAlerts();
 
     }
 
 
-    if (view === 'feedback') {
+    if (
+      view ===
+      'feedback'
+    ) {
 
       return await renderFeedback();
 
     }
 
 
-    if (view === 'admin') {
+    if (
+      view ===
+      'admin'
+    ) {
 
       return await renderAdmin();
 
@@ -799,13 +1081,16 @@ async function renderView(view) {
         </strong>
 
         <p class="muted">
-          ${esc(error.message)}
+          ${esc(
+            error.message
+          )}
         </p>
 
       </div>
     `;
 
   }
+
 }
 
 
@@ -813,7 +1098,10 @@ async function renderView(view) {
 // DASHBOARD
 // =========================================================
 
-function metricCard(label, value) {
+function metricCard(
+  label,
+  value
+) {
 
   return `
 
@@ -829,6 +1117,7 @@ function metricCard(label, value) {
 
     </div>
   `;
+
 }
 
 
@@ -837,16 +1126,20 @@ async function renderDashboard() {
   const dashboard =
     await apiCall(
       'getDashboard',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
   const totals =
-    dashboard?.totals || {};
+    dashboard?.totals ||
+    {};
 
 
   const byStatus =
-    dashboard?.byStatus || {};
+    dashboard?.byStatus ||
+    {};
 
 
   const units =
@@ -916,7 +1209,9 @@ async function renderDashboard() {
       ${
         units.length
           ? units
-              .map(unitCard)
+              .map(
+                unitCard
+              )
               .join('')
           : `
             <div class="empty-state">
@@ -939,6 +1234,10 @@ async function renderDashboard() {
 
     ${alertsTable(alerts)}
   `;
+
+
+  bindUnitOpenButtons();
+
 }
 
 
@@ -951,7 +1250,9 @@ async function renderUnits() {
   const units =
     await apiCall(
       'listMyUnits',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
@@ -963,7 +1264,9 @@ async function renderUnits() {
         Array.isArray(units) &&
         units.length
           ? units
-              .map(unitCard)
+              .map(
+                unitCard
+              )
               .join('')
           : `
             <div class="empty-state">
@@ -974,6 +1277,10 @@ async function renderUnits() {
 
     </div>
   `;
+
+
+  bindUnitOpenButtons();
+
 }
 
 
@@ -988,11 +1295,17 @@ function unitCard(unit) {
         <div>
 
           <div class="unit-code">
-            ${esc(unit.codigo)}
-          </div>
 
-          <div>
-            ${esc(unit.nombre)}
+            ${esc(
+              unit.codigo
+            )}
+
+            ·
+
+            ${esc(
+              unit.nombre
+            )}
+
           </div>
 
         </div>
@@ -1008,7 +1321,8 @@ function unitCard(unit) {
       <div class="muted">
 
         ${esc(
-          unit.tipoNombre || ''
+          unit.tipoNombre ||
+          ''
         )}
 
         ${
@@ -1038,15 +1352,903 @@ function unitCard(unit) {
         Próxima acción:
 
         <strong>
+
           ${fmtDate(
             unit.proximaAccion
           )}
+
         </strong>
+
+      </div>
+
+
+      <div
+        style="
+          margin-top:12px;
+        "
+      >
+
+        <button
+          type="button"
+          class="button secondary open-unit"
+          data-unit-id="${esc(
+            unit.idUnidad
+          )}"
+        >
+
+          Abrir unidad
+
+        </button>
 
       </div>
 
     </article>
   `;
+
+}
+
+
+// =========================================================
+// ABRIR UNIDAD
+// =========================================================
+
+function bindUnitOpenButtons() {
+
+  $$('.open-unit')
+    .forEach(
+      function (button) {
+
+        button.addEventListener(
+          'click',
+          function () {
+
+            openUnitDetail(
+              button.dataset.unitId
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+async function openUnitDetail(unitId) {
+
+  if (
+    !unitId
+  ) {
+
+    showToast(
+      'No se pudo identificar la unidad.'
+    );
+
+    return;
+
+  }
+
+
+  openModal(`
+
+    <div class="loading-card">
+      Cargando unidad...
+    </div>
+  `);
+
+
+  try {
+
+    const results =
+      await Promise.all([
+
+        apiCall(
+          'getUnit',
+          [
+            state.token,
+            unitId
+          ]
+        ),
+
+        apiCall(
+          'getUnitStock',
+          [
+            state.token,
+            unitId
+          ]
+        ),
+
+        apiCall(
+          'getUnitTimeline',
+          [
+            state.token,
+            unitId
+          ]
+        )
+
+      ]);
+
+
+    const unit =
+      results[0] ||
+      {};
+
+
+    const stockResponse =
+      results[1];
+
+
+    const timelineResponse =
+      results[2];
+
+
+    const stock =
+      Array.isArray(
+        stockResponse
+      )
+        ? stockResponse
+        : Array.isArray(
+            stockResponse?.stock
+          )
+          ? stockResponse.stock
+          : Array.isArray(
+              stockResponse?.items
+            )
+            ? stockResponse.items
+            : [];
+
+
+    const timeline =
+      Array.isArray(
+        timelineResponse
+      )
+        ? timelineResponse
+        : Array.isArray(
+            timelineResponse?.timeline
+          )
+          ? timelineResponse.timeline
+          : Array.isArray(
+              timelineResponse?.events
+            )
+            ? timelineResponse.events
+            : [];
+
+
+    renderUnitDetail(
+      unit,
+      stock,
+      timeline
+    );
+
+
+  } catch (error) {
+
+    openModal(`
+
+      <h2>
+        No se pudo abrir la unidad
+      </h2>
+
+
+      <div class="message">
+
+        ${esc(
+          error.message
+        )}
+
+      </div>
+    `);
+
+  }
+
+}
+
+
+// =========================================================
+// FICHA OPERATIVA DE UNIDAD
+// =========================================================
+
+function renderUnitDetail(
+  unit,
+  stock,
+  timeline
+) {
+
+  const unitCode =
+    unit.codigo ||
+    '-';
+
+
+  const unitName =
+    unit.nombre ||
+    unitCode;
+
+
+  const unitType =
+    unit.tipoNombre ||
+    unit.tipo ||
+    '';
+
+
+  const service =
+    unit.servicioNombre ||
+    '';
+
+
+  const location =
+    unit.ubicacion ||
+    '';
+
+
+  const status =
+    unit.estado ||
+    '-';
+
+
+  openModal(`
+
+    <div class="unit-detail">
+
+
+      <div
+        class="unit-head"
+        style="
+          margin-bottom:10px;
+        "
+      >
+
+        <div>
+
+          <h2
+            style="
+              margin:0 0 10px;
+            "
+          >
+
+            ${esc(
+              unitCode
+            )}
+
+            ·
+
+            ${esc(
+              unitName
+            )}
+
+          </h2>
+
+
+          <div class="muted">
+
+            ${statusBadge(
+              status
+            )}
+
+            ${
+              unitType
+                ? ' ' +
+                  esc(
+                    unitType
+                  )
+                : ''
+            }
+
+            ${
+              service
+                ? ' · ' +
+                  esc(
+                    service
+                  )
+                : ''
+            }
+
+            ${
+              location
+                ? ' · ' +
+                  esc(
+                    location
+                  )
+                : ''
+            }
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div
+        class="actions"
+        style="
+          display:flex;
+          flex-wrap:wrap;
+          gap:8px;
+          margin:18px 0 26px;
+        "
+      >
+
+
+        <button
+          type="button"
+          class="button primary"
+          id="unitVisoria"
+        >
+
+          Visoría
+
+        </button>
+
+
+        <button
+          type="button"
+          class="button secondary"
+          id="unitUse"
+        >
+
+          Registrar uso
+
+        </button>
+
+
+        <button
+          type="button"
+          class="button secondary"
+          id="unitReplenishment"
+        >
+
+          Reposición
+
+        </button>
+
+
+        <button
+          type="button"
+          class="button secondary"
+          id="unitAudit"
+        >
+
+          Auditar
+
+        </button>
+
+      </div>
+
+
+      <div class="section-title">
+
+        <h3>
+          Stock actual
+        </h3>
+
+      </div>
+
+
+      ${renderUnitStockTable(
+        stock
+      )}
+
+
+      <div
+        class="section-title"
+        style="
+          margin-top:28px;
+        "
+      >
+
+        <h3>
+          Línea de tiempo
+        </h3>
+
+      </div>
+
+
+      ${renderUnitTimeline(
+        timeline
+      )}
+
+
+    </div>
+  `);
+
+
+  $('#unitVisoria')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitVisoria(
+          unit
+        );
+
+      }
+    );
+
+
+  $('#unitUse')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitActionInfo(
+          unit,
+          'Registrar uso',
+          'El módulo permitirá registrar la utilización de la unidad y actualizar su historial.'
+        );
+
+      }
+    );
+
+
+  $('#unitReplenishment')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitActionInfo(
+          unit,
+          'Reposición',
+          'El módulo permitirá registrar reposiciones y actualizar el stock de la unidad.'
+        );
+
+      }
+    );
+
+
+  $('#unitAudit')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitActionInfo(
+          unit,
+          'Auditar unidad',
+          'El módulo permitirá registrar auditorías, hallazgos y seguimiento desde Calidad.'
+        );
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// STOCK ACTUAL
+// =========================================================
+
+function renderUnitStockTable(
+  stock
+) {
+
+  return `
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Insumo
+            </th>
+
+            <th>
+              Cantidad
+            </th>
+
+            <th>
+              Lote
+            </th>
+
+            <th>
+              Vencimiento
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            stock.length
+              ? stock
+                  .map(
+                    function (item) {
+
+                      const name =
+                        item.nombreInsumo ||
+                        item.insumo ||
+                        item.nombre ||
+                        item.codigoInsumo ||
+                        '-';
+
+
+                      const quantity =
+                        item.cantidadActual ??
+                        item.cantidad ??
+                        item.stock ??
+                        0;
+
+
+                      const lot =
+                        item.lote ||
+                        item.numeroLote ||
+                        '-';
+
+
+                      const expiry =
+                        item.fechaVencimiento ||
+                        item.vencimiento ||
+                        null;
+
+
+                      return `
+
+                        <tr>
+
+                          <td>
+
+                            <strong>
+
+                              ${esc(
+                                name
+                              )}
+
+                            </strong>
+
+                          </td>
+
+
+                          <td>
+
+                            ${esc(
+                              quantity
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${esc(
+                              lot
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${fmtDate(
+                              expiry
+                            )}
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
+              : `
+                <tr>
+
+                  <td colspan="4">
+
+                    Sin stock cargado.
+
+                  </td>
+
+                </tr>
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+}
+
+
+// =========================================================
+// LÍNEA DE TIEMPO
+// =========================================================
+
+function renderUnitTimeline(
+  timeline
+) {
+
+  if (
+    !timeline.length
+  ) {
+
+    return `
+
+      <div class="empty-state">
+
+        Sin movimientos.
+
+      </div>
+    `;
+
+  }
+
+
+  return `
+
+    <div class="grid">
+
+      ${
+        timeline
+          .map(
+            function (event) {
+
+              const date =
+                event.fechaHora ||
+                event.fecha ||
+                event.timestamp ||
+                event.createdAt ||
+                '';
+
+
+              const type =
+                event.tipoEvento ||
+                event.tipo ||
+                event.accion ||
+                'Movimiento';
+
+
+              const description =
+                event.descripcion ||
+                event.detalle ||
+                event.observaciones ||
+                '';
+
+
+              const user =
+                event.nombreUsuario ||
+                event.usuario ||
+                '';
+
+
+              return `
+
+                <article class="card">
+
+                  <div class="unit-head">
+
+                    <strong>
+
+                      ${esc(
+                        type
+                      )}
+
+                    </strong>
+
+
+                    <span class="muted">
+
+                      ${fmtDate(
+                        date
+                      )}
+
+                    </span>
+
+                  </div>
+
+
+                  ${
+                    description
+                      ? `
+                        <p>
+
+                          ${esc(
+                            description
+                          )}
+
+                        </p>
+                      `
+                      : ''
+                  }
+
+
+                  ${
+                    user
+                      ? `
+                        <div class="muted">
+
+                          Registrado por:
+
+                          ${esc(
+                            user
+                          )}
+
+                        </div>
+                      `
+                      : ''
+                  }
+
+                </article>
+              `;
+
+            }
+          )
+          .join('')
+      }
+
+    </div>
+  `;
+
+}
+
+
+// =========================================================
+// VISORÍA - ETAPA INICIAL
+// =========================================================
+
+function openUnitVisoria(unit) {
+
+  openModal(`
+
+    <h2>
+      Visoría de unidad
+    </h2>
+
+
+    <p class="muted">
+
+      ${esc(
+        unit.codigo ||
+        ''
+      )}
+
+      ·
+
+      ${esc(
+        unit.nombre ||
+        ''
+      )}
+
+    </p>
+
+
+    <div class="card">
+
+      <strong>
+        Control operativo
+      </strong>
+
+
+      <p>
+
+        La ficha de Visoría quedó recuperada dentro de SIGURE.
+
+      </p>
+
+
+      <p class="muted">
+
+        En la próxima etapa conectaremos esta pantalla
+        con la plantilla vigente de la unidad para registrar
+        cantidad esperada, cantidad encontrada, estado
+        y observaciones por insumo.
+
+      </p>
+
+    </div>
+
+
+    <button
+      type="button"
+      class="button secondary"
+      id="returnToUnit"
+    >
+
+      Volver a la unidad
+
+    </button>
+  `);
+
+
+  $('#returnToUnit')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitDetail(
+          unit.idUnidad
+        );
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// ACCIONES OPERATIVAS PENDIENTES DE CONEXIÓN
+// =========================================================
+
+function openUnitActionInfo(
+  unit,
+  title,
+  description
+) {
+
+  openModal(`
+
+    <h2>
+
+      ${esc(
+        title
+      )}
+
+    </h2>
+
+
+    <p class="muted">
+
+      ${esc(
+        unit.codigo ||
+        ''
+      )}
+
+      ·
+
+      ${esc(
+        unit.nombre ||
+        ''
+      )}
+
+    </p>
+
+
+    <div class="card">
+
+      <p>
+
+        ${esc(
+          description
+        )}
+
+      </p>
+
+    </div>
+
+
+    <button
+      type="button"
+      class="button secondary"
+      id="returnToUnitAction"
+    >
+
+      Volver a la unidad
+
+    </button>
+  `);
+
+
+  $('#returnToUnitAction')
+    ?.addEventListener(
+      'click',
+      function () {
+
+        openUnitDetail(
+          unit.idUnidad
+        );
+
+      }
+    );
+
 }
 
 
@@ -1059,7 +2261,9 @@ async function renderAlerts() {
   const alerts =
     await apiCall(
       'listAlerts',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
@@ -1069,6 +2273,7 @@ async function renderAlerts() {
         ? alerts
         : []
     );
+
 }
 
 
@@ -1083,10 +2288,23 @@ function alertsTable(alerts) {
         <thead>
 
           <tr>
-            <th>Nivel</th>
-            <th>Tipo</th>
-            <th>Descripción</th>
-            <th>Fecha</th>
+
+            <th>
+              Nivel
+            </th>
+
+            <th>
+              Tipo
+            </th>
+
+            <th>
+              Descripción
+            </th>
+
+            <th>
+              Fecha
+            </th>
+
           </tr>
 
         </thead>
@@ -1096,39 +2314,62 @@ function alertsTable(alerts) {
 
           ${
             alerts.length
-              ? alerts.map(function (alert) {
+              ? alerts
+                  .map(
+                    function (alert) {
 
-                  return `
+                      return `
 
-                    <tr>
+                        <tr>
 
-                      <td>
-                        ${esc(alert.nivel)}
-                      </td>
+                          <td>
 
-                      <td>
-                        ${esc(alert.tipo)}
-                      </td>
+                            ${esc(
+                              alert.nivel
+                            )}
 
-                      <td>
-                        ${esc(alert.descripcion)}
-                      </td>
+                          </td>
 
-                      <td>
-                        ${fmtDate(
-                          alert.fechaGeneracion
-                        )}
-                      </td>
 
-                    </tr>
-                  `;
+                          <td>
 
-                }).join('')
+                            ${esc(
+                              alert.tipo
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${esc(
+                              alert.descripcion
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${fmtDate(
+                              alert.fechaGeneracion
+                            )}
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="4">
+
                     Sin alertas abiertas.
+
                   </td>
 
                 </tr>
@@ -1141,6 +2382,7 @@ function alertsTable(alerts) {
 
     </div>
   `;
+
 }
 
 
@@ -1153,7 +2395,9 @@ async function renderFeedback() {
   const rows =
     await apiCall(
       'listMyAuditFeedback',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
@@ -1164,51 +2408,65 @@ async function renderFeedback() {
       ${
         Array.isArray(rows) &&
         rows.length
-          ? rows.map(function (row) {
+          ? rows
+              .map(
+                function (row) {
 
-              return `
+                  return `
 
-                <article class="card">
+                    <article class="card">
 
-                  <div class="unit-head">
+                      <div class="unit-head">
 
-                    <strong>
-                      ${esc(
-                        row.estado ||
-                        'Feedback'
-                      )}
-                    </strong>
+                        <strong>
 
-                    <span class="muted">
-                      ${fmtDate(
-                        row.fechaEnvio
-                      )}
-                    </span>
+                          ${esc(
+                            row.estado ||
+                            'Feedback'
+                          )}
 
-                  </div>
+                        </strong>
 
 
-                  <p>
-                    ${esc(
-                      row.mensajeCalidad ||
-                      row.descripcion ||
-                      ''
-                    )}
-                  </p>
+                        <span class="muted">
 
-                </article>
-              `;
+                          ${fmtDate(
+                            row.fechaEnvio
+                          )}
 
-            }).join('')
+                        </span>
+
+                      </div>
+
+
+                      <p>
+
+                        ${esc(
+                          row.mensajeCalidad ||
+                          row.descripcion ||
+                          ''
+                        )}
+
+                      </p>
+
+                    </article>
+                  `;
+
+                }
+              )
+              .join('')
           : `
             <div class="empty-state">
+
               No hay devoluciones de auditoría pendientes.
+
             </div>
           `
       }
 
     </div>
   `;
+
 }
 
 
@@ -1220,7 +2478,8 @@ async function renderAdmin() {
 
   if (
     !state.user ||
-    state.user.rol !== 'CALIDAD'
+    state.user.rol !==
+      'CALIDAD'
   ) {
 
     throw new Error(
@@ -1233,12 +2492,15 @@ async function renderAdmin() {
   const data =
     await apiCall(
       'adminGetMasterData',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
   state.adminData =
-    data || {};
+    data ||
+    {};
 
 
   $('#content').innerHTML = `
@@ -1248,70 +2510,63 @@ async function renderAdmin() {
       <button
         type="button"
         class="admin-tab active"
-        data-admin-section="services">
-
+        data-admin-section="services"
+      >
         Servicios
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="users">
-
+        data-admin-section="users"
+      >
         Usuarios
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="units">
-
+        data-admin-section="units"
+      >
         Unidades
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="catalog">
-
+        data-admin-section="catalog"
+      >
         Catálogo
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="templates">
-
+        data-admin-section="templates"
+      >
         Plantillas
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="types">
-
+        data-admin-section="types"
+      >
         Frecuencias
-
       </button>
 
 
       <button
         type="button"
         class="admin-tab"
-        data-admin-section="config">
-
+        data-admin-section="config"
+      >
         Configuración
-
       </button>
 
     </div>
@@ -1322,42 +2577,47 @@ async function renderAdmin() {
 
 
   $$('.admin-tab')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        function () {
+        button.addEventListener(
+          'click',
+          function () {
 
-          $$('.admin-tab')
-            .forEach(function (tab) {
+            $$('.admin-tab')
+              .forEach(
+                function (tab) {
 
-              tab.classList.remove(
-                'active'
+                  tab.classList.remove(
+                    'active'
+                  );
+
+                }
               );
 
-            });
+
+            button.classList.add(
+              'active'
+            );
 
 
-          button.classList.add(
-            'active'
-          );
+            renderAdminSection(
+              button.dataset.adminSection,
+              state.adminData
+            );
 
+          }
+        );
 
-          renderAdminSection(
-            button.dataset.adminSection,
-            state.adminData
-          );
-
-        }
-      );
-
-    });
+      }
+    );
 
 
   renderAdminSection(
     'services',
     state.adminData
   );
+
 }
 
 
@@ -1370,44 +2630,94 @@ function renderAdminSection(
   data
 ) {
 
-  if (section === 'services') {
-    return renderAdminServices(data);
+  if (
+    section ===
+    'services'
+  ) {
+
+    return renderAdminServices(
+      data
+    );
+
   }
 
 
-  if (section === 'users') {
-    return renderAdminUsers(data);
+  if (
+    section ===
+    'users'
+  ) {
+
+    return renderAdminUsers(
+      data
+    );
+
   }
 
 
-  if (section === 'units') {
-    return renderAdminUnits(data);
+  if (
+    section ===
+    'units'
+  ) {
+
+    return renderAdminUnits(
+      data
+    );
+
   }
 
 
-  if (section === 'catalog') {
-    return renderAdminCatalog(data);
+  if (
+    section ===
+    'catalog'
+  ) {
+
+    return renderAdminCatalog(
+      data
+    );
+
   }
 
 
-  if (section === 'templates') {
-    return renderAdminTemplates(data);
+  if (
+    section ===
+    'templates'
+  ) {
+
+    return renderAdminTemplates(
+      data
+    );
+
   }
 
 
-  if (section === 'types') {
-    return renderAdminTypes(data);
+  if (
+    section ===
+    'types'
+  ) {
+
+    return renderAdminTypes(
+      data
+    );
+
   }
 
 
-  if (section === 'config') {
-    return renderAdminConfig(data);
+  if (
+    section ===
+    'config'
+  ) {
+
+    return renderAdminConfig(
+      data
+    );
+
   }
+
 }
 
 
 // =========================================================
-// ACTUALIZAR ADMIN
+// REFRESCAR ADMIN
 // =========================================================
 
 async function refreshAdminData() {
@@ -1415,15 +2725,20 @@ async function refreshAdminData() {
   state.adminData =
     await apiCall(
       'adminGetMasterData',
-      [state.token]
+      [
+        state.token
+      ]
     );
 
 
   return state.adminData;
+
 }
 
 
-async function refreshAdminSection(section) {
+async function refreshAdminSection(
+  section
+) {
 
   const data =
     await refreshAdminData();
@@ -1436,25 +2751,31 @@ async function refreshAdminSection(section) {
 
 
   $$('.admin-tab')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.classList.toggle(
-        'active',
-        button.dataset.adminSection === section
-      );
+        button.classList.toggle(
+          'active',
+          button.dataset.adminSection ===
+            section
+        );
 
-    });
+      }
+    );
+
 }
 
 
 // =========================================================
-// SERVICIOS
+// ADMIN - SERVICIOS
 // =========================================================
 
 function renderAdminServices(data) {
 
   const services =
-    Array.isArray(data.services)
+    Array.isArray(
+      data.services
+    )
       ? data.services
       : [];
 
@@ -1477,9 +2798,10 @@ function renderAdminServices(data) {
 
 
       <button
-        id="adminNewService"
         type="button"
-        class="button primary">
+        id="adminNewService"
+        class="button primary"
+      >
 
         Nuevo servicio
 
@@ -1508,78 +2830,87 @@ function renderAdminServices(data) {
 
           ${
             services.length
-              ? services.map(function (service) {
+              ? services
+                  .map(
+                    function (service) {
 
-                  const active =
-                    asBool(
-                      service.activo
-                    );
-
-
-                  return `
-
-                    <tr>
-
-                      <td>
-
-                        <strong>
-                          ${esc(
-                            service.nombreServicio
-                          )}
-                        </strong>
-
-                      </td>
+                      const active =
+                        asBool(
+                          service.activo
+                        );
 
 
-                      <td>
+                      return `
 
-                        ${esc(
-                          service.establecimiento ||
-                          '-'
-                        )}
+                        <tr>
 
-                      </td>
+                          <td>
 
+                            <strong>
 
-                      <td>
+                              ${esc(
+                                service.nombreServicio
+                              )}
 
-                        ${
-                          active
-                            ? statusBadge(
-                                'ACTIVO'
-                              )
-                            : statusBadge(
-                                'INACTIVO'
-                              )
-                        }
+                            </strong>
 
-                      </td>
+                          </td>
 
 
-                      <td>
+                          <td>
 
-                        <button
-                          type="button"
-                          class="button secondary edit-service"
-                          data-id="${esc(
-                            service.idServicio
-                          )}">
+                            ${esc(
+                              service.establecimiento ||
+                              '-'
+                            )}
 
-                          Editar
+                          </td>
 
-                        </button>
 
-                      </td>
+                          <td>
 
-                    </tr>
-                  `;
+                            ${
+                              active
+                                ? statusBadge(
+                                    'ACTIVO'
+                                  )
+                                : statusBadge(
+                                    'INACTIVO'
+                                  )
+                            }
 
-                }).join('')
+                          </td>
+
+
+                          <td>
+
+                            <button
+                              type="button"
+                              class="button secondary edit-service"
+                              data-id="${esc(
+                                service.idServicio
+                              )}"
+                            >
+
+                              Editar
+
+                            </button>
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="4">
+
                     No hay servicios registrados.
+
                   </td>
 
                 </tr>
@@ -1602,35 +2933,40 @@ function renderAdminServices(data) {
 
 
   $$('.edit-service')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        function () {
+        button.addEventListener(
+          'click',
+          function () {
 
-          const service =
-            services.find(function (item) {
+            const service =
+              services.find(
+                function (item) {
 
-              return (
-                item.idServicio ===
-                button.dataset.id
+                  return (
+                    item.idServicio ===
+                    button.dataset.id
+                  );
+
+                }
               );
 
-            });
 
+            if (service) {
 
-          if (service) {
+              openEditService(
+                service
+              );
 
-            openEditService(
-              service
-            );
+            }
 
           }
+        );
 
-        }
-      );
+      }
+    );
 
-    });
 }
 
 
@@ -1649,7 +2985,8 @@ function openNewService() {
 
     <form
       id="serviceForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -1657,7 +2994,8 @@ function openNewService() {
 
         <input
           id="svcName"
-          required>
+          required
+        >
 
       </label>
 
@@ -1667,14 +3005,16 @@ function openNewService() {
         Establecimiento
 
         <input
-          id="svcSite">
+          id="svcSite"
+        >
 
       </label>
 
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Crear servicio
 
@@ -1737,6 +3077,7 @@ function openNewService() {
 
       }
     );
+
 }
 
 
@@ -1761,7 +3102,8 @@ function openEditService(service) {
 
     <form
       id="editServiceForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -1772,7 +3114,8 @@ function openEditService(service) {
           value="${esc(
             service.nombreServicio
           )}"
-          required>
+          required
+        >
 
       </label>
 
@@ -1786,7 +3129,8 @@ function openEditService(service) {
           value="${esc(
             service.establecimiento ||
             ''
-          )}">
+          )}"
+        >
 
       </label>
 
@@ -1796,23 +3140,22 @@ function openEditService(service) {
         Estado
 
         <select
-          id="editServiceActive">
+          id="editServiceActive"
+        >
 
           <option
             value="true"
-            ${active ? 'selected' : ''}>
-
+            ${active ? 'selected' : ''}
+          >
             Activo
-
           </option>
 
 
           <option
             value="false"
-            ${!active ? 'selected' : ''}>
-
+            ${!active ? 'selected' : ''}
+          >
             Inactivo
-
           </option>
 
         </select>
@@ -1822,7 +3165,8 @@ function openEditService(service) {
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Guardar cambios
 
@@ -1892,23 +3236,28 @@ function openEditService(service) {
 
       }
     );
+
 }
 
 
 // =========================================================
-// USUARIOS
+// ADMIN - USUARIOS
 // =========================================================
 
 function renderAdminUsers(data) {
 
   const users =
-    Array.isArray(data.users)
+    Array.isArray(
+      data.users
+    )
       ? data.users
       : [];
 
 
   const services =
-    Array.isArray(data.services)
+    Array.isArray(
+      data.services
+    )
       ? data.services
       : [];
 
@@ -1931,9 +3280,10 @@ function renderAdminUsers(data) {
 
 
       <button
-        id="adminNewUser"
         type="button"
-        class="button primary">
+        id="adminNewUser"
+        class="button primary"
+      >
 
         Nuevo usuario
 
@@ -1964,125 +3314,139 @@ function renderAdminUsers(data) {
 
           ${
             users.length
-              ? users.map(function (user) {
+              ? users
+                  .map(
+                    function (user) {
 
-                  const active =
-                    String(
-                      user.estado ||
-                      ''
-                    ).toUpperCase() ===
-                    'ACTIVO';
-
-
-                  return `
-
-                    <tr>
-
-                      <td>
-
-                        <strong>
-                          ${esc(
-                            user.usuario
-                          )}
-                        </strong>
-
-                      </td>
+                      const active =
+                        String(
+                          user.estado ||
+                          ''
+                        ).toUpperCase() ===
+                        'ACTIVO';
 
 
-                      <td>
-                        ${esc(
-                          user.nombre ||
-                          '-'
-                        )}
-                      </td>
+                      return `
+
+                        <tr>
+
+                          <td>
+
+                            <strong>
+
+                              ${esc(
+                                user.usuario
+                              )}
+
+                            </strong>
+
+                          </td>
 
 
-                      <td>
-                        ${esc(
-                          user.rol ||
-                          '-'
-                        )}
-                      </td>
+                          <td>
+
+                            ${esc(
+                              user.nombre ||
+                              '-'
+                            )}
+
+                          </td>
 
 
-                      <td>
+                          <td>
 
-                        ${esc(
-                          adminServiceName(
-                            user.idServicio,
-                            services
-                          )
-                        )}
+                            ${esc(
+                              user.rol ||
+                              '-'
+                            )}
 
-                      </td>
+                          </td>
 
 
-                      <td>
-                        ${statusBadge(
-                          user.estado
-                        )}
-                      </td>
+                          <td>
+
+                            ${esc(
+                              adminServiceName(
+                                user.idServicio,
+                                services
+                              )
+                            )}
+
+                          </td>
 
 
-                      <td>
+                          <td>
 
-                        ${
-                          user.rol === 'SERVICIO'
-                            ? `
+                            ${statusBadge(
+                              user.estado
+                            )}
 
-                              <div class="actions">
-
-                                <button
-                                  type="button"
-                                  class="button secondary reset-user"
-                                  data-id="${esc(
-                                    user.idUsuario
-                                  )}"
-                                  data-user="${esc(
-                                    user.usuario
-                                  )}">
-
-                                  Nueva clave
-
-                                </button>
+                          </td>
 
 
-                                <button
-                                  type="button"
-                                  class="button secondary toggle-user"
-                                  data-id="${esc(
-                                    user.idUsuario
-                                  )}"
-                                  data-status="${
-                                    active
-                                      ? 'INACTIVO'
-                                      : 'ACTIVO'
-                                  }">
+                          <td>
 
-                                  ${
-                                    active
-                                      ? 'Desactivar'
-                                      : 'Activar'
-                                  }
+                            ${
+                              user.rol ===
+                              'SERVICIO'
+                                ? `
+                                  <div class="actions">
 
-                                </button>
+                                    <button
+                                      type="button"
+                                      class="button secondary reset-user"
+                                      data-id="${esc(
+                                        user.idUsuario
+                                      )}"
+                                      data-user="${esc(
+                                        user.usuario
+                                      )}"
+                                    >
+                                      Nueva clave
+                                    </button>
 
-                              </div>
-                            `
-                            : 'Administrador'
-                        }
 
-                      </td>
+                                    <button
+                                      type="button"
+                                      class="button secondary toggle-user"
+                                      data-id="${esc(
+                                        user.idUsuario
+                                      )}"
+                                      data-status="${
+                                        active
+                                          ? 'INACTIVO'
+                                          : 'ACTIVO'
+                                      }"
+                                    >
 
-                    </tr>
-                  `;
+                                      ${
+                                        active
+                                          ? 'Desactivar'
+                                          : 'Activar'
+                                      }
 
-                }).join('')
+                                    </button>
+
+                                  </div>
+                                `
+                                : 'Administrador'
+                            }
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="6">
+
                     No hay usuarios registrados.
+
                   </td>
 
                 </tr>
@@ -2111,64 +3475,69 @@ function renderAdminUsers(data) {
 
 
   $$('.toggle-user')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        async function () {
+        button.addEventListener(
+          'click',
+          async function () {
 
-          try {
+            try {
 
-            await apiCall(
-              'adminSetUserStatus',
-              [
-                state.token,
-                button.dataset.id,
-                button.dataset.status
-              ]
-            );
-
-
-            showToast(
-              'Estado actualizado.'
-            );
+              await apiCall(
+                'adminSetUserStatus',
+                [
+                  state.token,
+                  button.dataset.id,
+                  button.dataset.status
+                ]
+              );
 
 
-            await refreshAdminSection(
-              'users'
-            );
+              showToast(
+                'Estado actualizado.'
+              );
 
 
-          } catch (error) {
+              await refreshAdminSection(
+                'users'
+              );
 
-            showToast(
-              error.message
-            );
+
+            } catch (error) {
+
+              showToast(
+                error.message
+              );
+
+            }
 
           }
+        );
 
-        }
-      );
-
-    });
+      }
+    );
 
 
   $$('.reset-user')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        function () {
+        button.addEventListener(
+          'click',
+          function () {
 
-          openResetPassword(
-            button.dataset.id,
-            button.dataset.user
-          );
+            openResetPassword(
+              button.dataset.id,
+              button.dataset.user
+            );
 
-        }
-      );
+          }
+        );
 
-    });
+      }
+    );
+
 }
 
 
@@ -2179,13 +3548,15 @@ function renderAdminUsers(data) {
 function openNewUser(services) {
 
   const activeServices =
-    services.filter(function (service) {
+    services.filter(
+      function (service) {
 
-      return asBool(
-        service.activo
-      );
+        return asBool(
+          service.activo
+        );
 
-    });
+      }
+    );
 
 
   openModal(`
@@ -2197,7 +3568,8 @@ function openNewUser(services) {
 
     <form
       id="userForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -2205,7 +3577,8 @@ function openNewUser(services) {
 
         <input
           id="usrName"
-          required>
+          required
+        >
 
       </label>
 
@@ -2216,7 +3589,8 @@ function openNewUser(services) {
 
         <input
           id="usrUser"
-          required>
+          required
+        >
 
       </label>
 
@@ -2229,7 +3603,8 @@ function openNewUser(services) {
           id="usrPass"
           type="password"
           minlength="8"
-          required>
+          required
+        >
 
       </label>
 
@@ -2240,7 +3615,8 @@ function openNewUser(services) {
 
         <select
           id="usrSvc"
-          required>
+          required
+        >
 
           <option value="">
             Seleccione
@@ -2248,23 +3624,26 @@ function openNewUser(services) {
 
           ${
             activeServices
-              .map(function (service) {
+              .map(
+                function (service) {
 
-                return `
+                  return `
 
-                  <option
-                    value="${esc(
-                      service.idServicio
-                    )}">
+                    <option
+                      value="${esc(
+                        service.idServicio
+                      )}"
+                    >
 
-                    ${esc(
-                      service.nombreServicio
-                    )}
+                      ${esc(
+                        service.nombreServicio
+                      )}
 
-                  </option>
-                `;
+                    </option>
+                  `;
 
-              })
+                }
+              )
               .join('')
           }
 
@@ -2275,7 +3654,8 @@ function openNewUser(services) {
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Crear usuario
 
@@ -2346,6 +3726,7 @@ function openNewUser(services) {
 
       }
     );
+
 }
 
 
@@ -2366,16 +3747,24 @@ function openResetPassword(
 
 
     <p>
+
       Usuario:
+
       <strong>
-        ${esc(username)}
+
+        ${esc(
+          username
+        )}
+
       </strong>
+
     </p>
 
 
     <form
       id="resetPasswordForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -2385,7 +3774,8 @@ function openResetPassword(
           id="resetPasswordValue"
           type="password"
           minlength="8"
-          required>
+          required
+        >
 
       </label>
 
@@ -2398,14 +3788,16 @@ function openResetPassword(
           id="resetPasswordConfirm"
           type="password"
           minlength="8"
-          required>
+          required
+        >
 
       </label>
 
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Restablecer contraseña
 
@@ -2433,7 +3825,10 @@ function openResetPassword(
             .value;
 
 
-        if (password !== confirm) {
+        if (
+          password !==
+          confirm
+        ) {
 
           showToast(
             'Las contraseñas no coinciden.'
@@ -2474,17 +3869,20 @@ function openResetPassword(
 
       }
     );
+
 }
 
 
 // =========================================================
-// UNIDADES ADMIN
+// ADMIN - UNIDADES
 // =========================================================
 
 function renderAdminUnits(data) {
 
   const units =
-    Array.isArray(data.units)
+    Array.isArray(
+      data.units
+    )
       ? data.units
       : [];
 
@@ -2507,9 +3905,10 @@ function renderAdminUnits(data) {
 
 
       <button
-        id="adminNewUnit"
         type="button"
-        class="button primary">
+        id="adminNewUnit"
+        class="button primary"
+      >
 
         Nueva unidad
 
@@ -2540,70 +3939,98 @@ function renderAdminUnits(data) {
 
           ${
             units.length
-              ? units.map(function (unit) {
+              ? units
+                  .map(
+                    function (unit) {
 
-                  return `
+                      return `
 
-                    <tr>
+                        <tr>
 
-                      <td>
-                        <strong>
-                          ${esc(unit.codigo)}
-                        </strong>
-                      </td>
+                          <td>
 
-                      <td>
-                        ${esc(unit.nombre)}
-                      </td>
+                            <strong>
 
-                      <td>
+                              ${esc(
+                                unit.codigo
+                              )}
 
-                        ${esc(
-                          adminTypeName(
-                            unit.idTipoUnidad,
-                            data.types || []
-                          )
-                        )}
+                            </strong>
 
-                      </td>
+                          </td>
 
-                      <td>
 
-                        ${esc(
-                          adminServiceName(
-                            unit.idServicio,
-                            data.services || []
-                          )
-                        )}
+                          <td>
 
-                      </td>
+                            ${esc(
+                              unit.nombre
+                            )}
 
-                      <td>
+                          </td>
 
-                        ${esc(
-                          adminTemplateName(
-                            unit.idPlantilla,
-                            data.templates || []
-                          )
-                        )}
 
-                      </td>
+                          <td>
 
-                      <td>
-                        ${statusBadge(
-                          unit.estado
-                        )}
-                      </td>
+                            ${esc(
+                              adminTypeName(
+                                unit.idTipoUnidad,
+                                data.types ||
+                                []
+                              )
+                            )}
 
-                    </tr>
-                  `;
+                          </td>
 
-                }).join('')
+
+                          <td>
+
+                            ${esc(
+                              adminServiceName(
+                                unit.idServicio,
+                                data.services ||
+                                []
+                              )
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${esc(
+                              adminTemplateName(
+                                unit.idPlantilla,
+                                data.templates ||
+                                []
+                              )
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${statusBadge(
+                              unit.estado
+                            )}
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
+
                   <td colspan="6">
+
                     No hay unidades registradas.
+
                   </td>
+
                 </tr>
               `
           }
@@ -2622,13 +4049,19 @@ function renderAdminUnits(data) {
       function () {
 
         openNewUnit(
-          data.services || [],
-          data.types || [],
-          data.templates || []
+          data.services ||
+          [],
+
+          data.types ||
+          [],
+
+          data.templates ||
+          []
         );
 
       }
     );
+
 }
 
 
@@ -2643,13 +4076,15 @@ function openNewUnit(
 ) {
 
   const activeServices =
-    services.filter(function (service) {
+    services.filter(
+      function (service) {
 
-      return asBool(
-        service.activo
-      );
+        return asBool(
+          service.activo
+        );
 
-    });
+      }
+    );
 
 
   openModal(`
@@ -2661,7 +4096,8 @@ function openNewUnit(
 
     <form
       id="unitForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -2669,7 +4105,8 @@ function openNewUnit(
 
         <input
           id="uniCode"
-          required>
+          required
+        >
 
       </label>
 
@@ -2680,7 +4117,8 @@ function openNewUnit(
 
         <input
           id="uniName"
-          required>
+          required
+        >
 
       </label>
 
@@ -2691,30 +4129,36 @@ function openNewUnit(
 
         <select
           id="uniType"
-          required>
+          required
+        >
 
           <option value="">
             Seleccione
           </option>
 
           ${
-            types.map(function (type) {
+            types
+              .map(
+                function (type) {
 
-              return `
+                  return `
 
-                <option
-                  value="${esc(
-                    type.idTipoUnidad
-                  )}">
+                    <option
+                      value="${esc(
+                        type.idTipoUnidad
+                      )}"
+                    >
 
-                  ${esc(
-                    type.nombre
-                  )}
+                      ${esc(
+                        type.nombre
+                      )}
 
-                </option>
-              `;
+                    </option>
+                  `;
 
-            }).join('')
+                }
+              )
+              .join('')
           }
 
         </select>
@@ -2728,30 +4172,36 @@ function openNewUnit(
 
         <select
           id="uniSvc"
-          required>
+          required
+        >
 
           <option value="">
             Seleccione
           </option>
 
           ${
-            activeServices.map(function (service) {
+            activeServices
+              .map(
+                function (service) {
 
-              return `
+                  return `
 
-                <option
-                  value="${esc(
-                    service.idServicio
-                  )}">
+                    <option
+                      value="${esc(
+                        service.idServicio
+                      )}"
+                    >
 
-                  ${esc(
-                    service.nombreServicio
-                  )}
+                      ${esc(
+                        service.nombreServicio
+                      )}
 
-                </option>
-              `;
+                    </option>
+                  `;
 
-            }).join('')
+                }
+              )
+              .join('')
           }
 
         </select>
@@ -2764,7 +4214,8 @@ function openNewUnit(
         Ubicación
 
         <input
-          id="uniLocation">
+          id="uniLocation"
+        >
 
       </label>
 
@@ -2774,33 +4225,40 @@ function openNewUnit(
         Plantilla
 
         <select
-          id="uniTpl">
+          id="uniTpl"
+        >
 
           <option value="">
             Sin plantilla
           </option>
 
           ${
-            templates.map(function (template) {
+            templates
+              .map(
+                function (template) {
 
-              return `
+                  return `
 
-                <option
-                  value="${esc(
-                    template.idPlantilla
-                  )}">
+                    <option
+                      value="${esc(
+                        template.idPlantilla
+                      )}"
+                    >
 
-                  ${esc(
-                    template.nombre
-                  )}
-                  v${esc(
-                    template.version
-                  )}
+                      ${esc(
+                        template.nombre
+                      )}
 
-                </option>
-              `;
+                      v${esc(
+                        template.version
+                      )}
 
-            }).join('')
+                    </option>
+                  `;
+
+                }
+              )
+              .join('')
           }
 
         </select>
@@ -2810,7 +4268,8 @@ function openNewUnit(
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Crear unidad
 
@@ -2890,6 +4349,7 @@ function openNewUnit(
 
       }
     );
+
 }
 
 
@@ -2900,7 +4360,9 @@ function openNewUnit(
 function renderAdminCatalog(data) {
 
   const catalog =
-    Array.isArray(data.catalog)
+    Array.isArray(
+      data.catalog
+    )
       ? data.catalog
       : [];
 
@@ -2923,9 +4385,10 @@ function renderAdminCatalog(data) {
 
 
       <button
-        id="adminNewItem"
         type="button"
-        class="button primary">
+        id="adminNewItem"
+        class="button primary"
+      >
 
         Nuevo insumo
 
@@ -2956,65 +4419,98 @@ function renderAdminCatalog(data) {
 
           ${
             catalog.length
-              ? catalog.map(function (item) {
+              ? catalog
+                  .map(
+                    function (item) {
 
-                  return `
+                      return `
 
-                    <tr>
+                        <tr>
 
-                      <td>
-                        ${esc(item.codigo)}
-                      </td>
+                          <td>
 
-                      <td>
-                        <strong>
-                          ${esc(item.nombre)}
-                        </strong>
-                      </td>
+                            ${esc(
+                              item.codigo
+                            )}
 
-                      <td>
-                        ${esc(
-                          item.categoria ||
-                          '-'
-                        )}
-                      </td>
+                          </td>
 
-                      <td>
-                        ${esc(
-                          item.unidadMedida ||
-                          '-'
-                        )}
-                      </td>
 
-                      <td>
+                          <td>
 
-                        ${
-                          asBool(item.esCritico)
-                            ? 'Sí'
-                            : 'No'
-                        }
+                            <strong>
 
-                      </td>
+                              ${esc(
+                                item.nombre
+                              )}
 
-                      <td>
+                            </strong>
 
-                        ${
-                          asBool(item.activo)
-                            ? statusBadge('ACTIVO')
-                            : statusBadge('INACTIVO')
-                        }
+                          </td>
 
-                      </td>
 
-                    </tr>
-                  `;
+                          <td>
 
-                }).join('')
+                            ${esc(
+                              item.categoria ||
+                              '-'
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${esc(
+                              item.unidadMedida ||
+                              '-'
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            ${
+                              asBool(
+                                item.esCritico
+                              )
+                                ? 'Sí'
+                                : 'No'
+                            }
+
+                          </td>
+
+
+                          <td>
+
+                            ${
+                              asBool(
+                                item.activo
+                              )
+                                ? statusBadge(
+                                    'ACTIVO'
+                                  )
+                                : statusBadge(
+                                    'INACTIVO'
+                                  )
+                            }
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="6">
+
                     No hay insumos registrados.
+
                   </td>
 
                 </tr>
@@ -3034,6 +4530,7 @@ function renderAdminCatalog(data) {
       'click',
       openNewItem
     );
+
 }
 
 
@@ -3052,7 +4549,8 @@ function openNewItem() {
 
     <form
       id="itemForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -3060,7 +4558,8 @@ function openNewItem() {
 
         <input
           id="itmCode"
-          required>
+          required
+        >
 
       </label>
 
@@ -3071,7 +4570,8 @@ function openNewItem() {
 
         <input
           id="itmName"
-          required>
+          required
+        >
 
       </label>
 
@@ -3082,7 +4582,8 @@ function openNewItem() {
 
         <input
           id="itmCat"
-          required>
+          required
+        >
 
       </label>
 
@@ -3093,7 +4594,8 @@ function openNewItem() {
 
         <input
           id="itmUnit"
-          required>
+          required
+        >
 
       </label>
 
@@ -3105,14 +4607,16 @@ function openNewItem() {
         <input
           id="itmCritical"
           type="checkbox"
-          style="width:auto">
+          style="width:auto"
+        >
 
       </label>
 
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Crear insumo
 
@@ -3189,6 +4693,7 @@ function openNewItem() {
 
       }
     );
+
 }
 
 
@@ -3199,7 +4704,9 @@ function openNewItem() {
 function renderAdminTemplates(data) {
 
   const templates =
-    Array.isArray(data.templates)
+    Array.isArray(
+      data.templates
+    )
       ? data.templates
       : [];
 
@@ -3222,9 +4729,10 @@ function renderAdminTemplates(data) {
 
 
       <button
-        id="adminNewTemplate"
         type="button"
-        class="button primary">
+        id="adminNewTemplate"
+        class="button primary"
+      >
 
         Nueva plantilla
 
@@ -3254,69 +4762,87 @@ function renderAdminTemplates(data) {
 
           ${
             templates.length
-              ? templates.map(function (template) {
+              ? templates
+                  .map(
+                    function (template) {
 
-                  return `
+                      return `
 
-                    <tr>
+                        <tr>
 
-                      <td>
+                          <td>
 
-                        <strong>
-                          ${esc(
-                            template.nombre
-                          )}
-                        </strong>
+                            <strong>
 
-                      </td>
+                              ${esc(
+                                template.nombre
+                              )}
 
-                      <td>
-                        ${esc(
-                          template.version
-                        )}
-                      </td>
+                            </strong>
 
-                      <td>
+                          </td>
 
-                        ${esc(
-                          adminTypeName(
-                            template.idTipoUnidad,
-                            data.types || []
-                          )
-                        )}
 
-                      </td>
+                          <td>
 
-                      <td>
-                        ${fmtDate(
-                          template.fechaVigencia
-                        )}
-                      </td>
+                            ${esc(
+                              template.version
+                            )}
 
-                      <td>
+                          </td>
 
-                        <button
-                          type="button"
-                          class="button secondary add-template-item"
-                          data-id="${esc(
-                            template.idPlantilla
-                          )}">
 
-                          Agregar contenido
+                          <td>
 
-                        </button>
+                            ${esc(
+                              adminTypeName(
+                                template.idTipoUnidad,
+                                data.types ||
+                                []
+                              )
+                            )}
 
-                      </td>
+                          </td>
 
-                    </tr>
-                  `;
 
-                }).join('')
+                          <td>
+
+                            ${fmtDate(
+                              template.fechaVigencia
+                            )}
+
+                          </td>
+
+
+                          <td>
+
+                            <button
+                              type="button"
+                              class="button secondary add-template-item"
+                              data-id="${esc(
+                                template.idPlantilla
+                              )}"
+                            >
+
+                              Agregar contenido
+
+                            </button>
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="5">
+
                     No hay plantillas registradas.
+
                   </td>
 
                 </tr>
@@ -3337,7 +4863,8 @@ function renderAdminTemplates(data) {
       function () {
 
         openNewTemplate(
-          data.types || []
+          data.types ||
+          []
         );
 
       }
@@ -3345,21 +4872,25 @@ function renderAdminTemplates(data) {
 
 
   $$('.add-template-item')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        function () {
+        button.addEventListener(
+          'click',
+          function () {
 
-          openTemplateItem(
-            button.dataset.id,
-            data.catalog || []
-          );
+            openTemplateItem(
+              button.dataset.id,
+              data.catalog ||
+              []
+            );
 
-        }
-      );
+          }
+        );
 
-    });
+      }
+    );
+
 }
 
 
@@ -3378,7 +4909,8 @@ function openNewTemplate(types) {
 
     <form
       id="templateForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -3386,7 +4918,8 @@ function openNewTemplate(types) {
 
         <input
           id="tplName"
-          required>
+          required
+        >
 
       </label>
 
@@ -3398,7 +4931,8 @@ function openNewTemplate(types) {
         <input
           id="tplVersion"
           value="1.0"
-          required>
+          required
+        >
 
       </label>
 
@@ -3409,30 +4943,36 @@ function openNewTemplate(types) {
 
         <select
           id="tplType"
-          required>
+          required
+        >
 
           <option value="">
             Seleccione
           </option>
 
           ${
-            types.map(function (type) {
+            types
+              .map(
+                function (type) {
 
-              return `
+                  return `
 
-                <option
-                  value="${esc(
-                    type.idTipoUnidad
-                  )}">
+                    <option
+                      value="${esc(
+                        type.idTipoUnidad
+                      )}"
+                    >
 
-                  ${esc(
-                    type.nombre
-                  )}
+                      ${esc(
+                        type.nombre
+                      )}
 
-                </option>
-              `;
+                    </option>
+                  `;
 
-            }).join('')
+                }
+              )
+              .join('')
           }
 
         </select>
@@ -3446,14 +4986,16 @@ function openNewTemplate(types) {
 
         <input
           id="tplDate"
-          type="date">
+          type="date"
+        >
 
       </label>
 
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Crear plantilla
 
@@ -3524,11 +5066,12 @@ function openNewTemplate(types) {
 
       }
     );
+
 }
 
 
 // =========================================================
-// AGREGAR INSUMO A PLANTILLA
+// AGREGAR CONTENIDO A PLANTILLA
 // =========================================================
 
 function openTemplateItem(
@@ -3545,7 +5088,8 @@ function openTemplateItem(
 
     <form
       id="templateItemForm"
-      class="form-stack">
+      class="form-stack"
+    >
 
       <label>
 
@@ -3553,34 +5097,42 @@ function openTemplateItem(
 
         <select
           id="tpiItem"
-          required>
+          required
+        >
 
           <option value="">
             Seleccione
           </option>
 
           ${
-            catalog.map(function (item) {
+            catalog
+              .map(
+                function (item) {
 
-              return `
+                  return `
 
-                <option
-                  value="${esc(
-                    item.idInsumo
-                  )}">
+                    <option
+                      value="${esc(
+                        item.idInsumo
+                      )}"
+                    >
 
-                  ${esc(
-                    item.codigo
-                  )}
-                  ·
-                  ${esc(
-                    item.nombre
-                  )}
+                      ${esc(
+                        item.codigo
+                      )}
 
-                </option>
-              `;
+                      ·
 
-            }).join('')
+                      ${esc(
+                        item.nombre
+                      )}
+
+                    </option>
+                  `;
+
+                }
+              )
+              .join('')
           }
 
         </select>
@@ -3593,7 +5145,8 @@ function openTemplateItem(
         Compartimiento
 
         <input
-          id="tpiComp">
+          id="tpiComp"
+        >
 
       </label>
 
@@ -3607,7 +5160,8 @@ function openTemplateItem(
           type="number"
           min="1"
           value="1"
-          required>
+          required
+        >
 
       </label>
 
@@ -3620,7 +5174,8 @@ function openTemplateItem(
           id="tpiMin"
           type="number"
           min="0"
-          value="1">
+          value="1"
+        >
 
       </label>
 
@@ -3632,7 +5187,8 @@ function openTemplateItem(
         <input
           id="tpiCritical"
           type="checkbox"
-          style="width:auto">
+          style="width:auto"
+        >
 
       </label>
 
@@ -3644,14 +5200,16 @@ function openTemplateItem(
         <input
           id="tpiOrder"
           type="number"
-          value="0">
+          value="0"
+        >
 
       </label>
 
 
       <button
         type="submit"
-        class="button primary">
+        class="button primary"
+      >
 
         Agregar insumo
 
@@ -3733,6 +5291,7 @@ function openTemplateItem(
 
       }
     );
+
 }
 
 
@@ -3743,7 +5302,9 @@ function openTemplateItem(
 function renderAdminTypes(data) {
 
   const types =
-    Array.isArray(data.types)
+    Array.isArray(
+      data.types
+    )
       ? data.types
       : [];
 
@@ -3771,71 +5332,84 @@ function renderAdminTypes(data) {
 
       ${
         types.length
-          ? types.map(function (type) {
+          ? types
+              .map(
+                function (type) {
 
-              return `
+                  return `
 
-                <div class="card">
+                    <div class="card">
 
-                  <h3>
-                    ${esc(type.nombre)}
-                  </h3>
+                      <h3>
 
+                        ${esc(
+                          type.nombre
+                        )}
 
-                  <label>
-
-                    Visoría cada (horas)
-
-                    <input
-                      class="type-visoria"
-                      data-id="${esc(
-                        type.idTipoUnidad
-                      )}"
-                      type="number"
-                      min="1"
-                      value="${esc(
-                        type.frecuenciaVisoriaHoras
-                      )}">
-
-                  </label>
+                      </h3>
 
 
-                  <label>
+                      <label>
 
-                    Preventivo cada (días)
+                        Visoría cada (horas)
 
-                    <input
-                      class="type-preventivo"
-                      data-id="${esc(
-                        type.idTipoUnidad
-                      )}"
-                      type="number"
-                      min="1"
-                      value="${esc(
-                        type.frecuenciaPreventivoDias
-                      )}">
+                        <input
+                          class="type-visoria"
+                          data-id="${esc(
+                            type.idTipoUnidad
+                          )}"
+                          type="number"
+                          min="1"
+                          value="${esc(
+                            type.frecuenciaVisoriaHoras
+                          )}"
+                        >
 
-                  </label>
+                      </label>
 
 
-                  <button
-                    type="button"
-                    class="button primary save-type"
-                    data-id="${esc(
-                      type.idTipoUnidad
-                    )}">
+                      <label>
 
-                    Guardar
+                        Preventivo cada (días)
 
-                  </button>
+                        <input
+                          class="type-preventivo"
+                          data-id="${esc(
+                            type.idTipoUnidad
+                          )}"
+                          type="number"
+                          min="1"
+                          value="${esc(
+                            type.frecuenciaPreventivoDias
+                          )}"
+                        >
 
-                </div>
-              `;
+                      </label>
 
-            }).join('')
+
+                      <button
+                        type="button"
+                        class="button primary save-type"
+                        data-id="${esc(
+                          type.idTipoUnidad
+                        )}"
+                      >
+
+                        Guardar
+
+                      </button>
+
+                    </div>
+                  `;
+
+                }
+              )
+              .join('')
           : `
             <div class="empty-state">
+
               No hay tipos configurados.
+
             </div>
           `
       }
@@ -3845,78 +5419,81 @@ function renderAdminTypes(data) {
 
 
   $$('.save-type')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        async function () {
+        button.addEventListener(
+          'click',
+          async function () {
 
-          const id =
-            button.dataset.id;
-
-
-          const visoria =
-            document.querySelector(
-              '.type-visoria[data-id="' +
-              id +
-              '"]'
-            );
+            const id =
+              button.dataset.id;
 
 
-          const preventivo =
-            document.querySelector(
-              '.type-preventivo[data-id="' +
-              id +
-              '"]'
-            );
+            const visoria =
+              document.querySelector(
+                '.type-visoria[data-id="' +
+                id +
+                '"]'
+              );
 
 
-          try {
-
-            await apiCall(
-              'adminUpdateUnitType',
-              [
-                state.token,
-
-                id,
-
-                {
-                  frecuenciaVisoriaHoras:
-                    Number(
-                      visoria.value
-                    ),
-
-                  frecuenciaPreventivoDias:
-                    Number(
-                      preventivo.value
-                    )
-                }
-              ]
-            );
+            const preventivo =
+              document.querySelector(
+                '.type-preventivo[data-id="' +
+                id +
+                '"]'
+              );
 
 
-            showToast(
-              'Frecuencia actualizada.'
-            );
+            try {
+
+              await apiCall(
+                'adminUpdateUnitType',
+                [
+                  state.token,
+
+                  id,
+
+                  {
+                    frecuenciaVisoriaHoras:
+                      Number(
+                        visoria.value
+                      ),
+
+                    frecuenciaPreventivoDias:
+                      Number(
+                        preventivo.value
+                      )
+                  }
+                ]
+              );
 
 
-            await refreshAdminSection(
-              'types'
-            );
+              showToast(
+                'Frecuencia actualizada.'
+              );
 
 
-          } catch (error) {
+              await refreshAdminSection(
+                'types'
+              );
 
-            showToast(
-              error.message
-            );
+
+            } catch (error) {
+
+              showToast(
+                error.message
+              );
+
+            }
 
           }
+        );
 
-        }
-      );
+      }
+    );
 
-    });
 }
 
 
@@ -3927,7 +5504,9 @@ function renderAdminTypes(data) {
 function renderAdminConfig(data) {
 
   const config =
-    Array.isArray(data.config)
+    Array.isArray(
+      data.config
+    )
       ? data.config
       : [];
 
@@ -3971,65 +5550,79 @@ function renderAdminConfig(data) {
 
           ${
             config.length
-              ? config.map(function (row, index) {
+              ? config
+                  .map(
+                    function (row, index) {
 
-                  return `
+                      return `
 
-                    <tr>
+                        <tr>
 
-                      <td>
+                          <td>
 
-                        <strong>
-                          ${esc(row.clave)}
-                        </strong>
+                            <strong>
 
-                      </td>
+                              ${esc(
+                                row.clave
+                              )}
 
+                            </strong>
 
-                      <td>
-
-                        <input
-                          id="configValue${index}"
-                          value="${esc(
-                            row.valor
-                          )}">
-
-                      </td>
+                          </td>
 
 
-                      <td>
-                        ${esc(
-                          row.descripcion ||
-                          ''
-                        )}
-                      </td>
+                          <td>
+
+                            <input
+                              id="configValue${index}"
+                              value="${esc(
+                                row.valor
+                              )}"
+                            >
+
+                          </td>
 
 
-                      <td>
+                          <td>
 
-                        <button
-                          type="button"
-                          class="button secondary save-config"
-                          data-key="${esc(
-                            row.clave
-                          )}"
-                          data-index="${index}">
+                            ${esc(
+                              row.descripcion ||
+                              ''
+                            )}
 
-                          Guardar
+                          </td>
 
-                        </button>
 
-                      </td>
+                          <td>
 
-                    </tr>
-                  `;
+                            <button
+                              type="button"
+                              class="button secondary save-config"
+                              data-key="${esc(
+                                row.clave
+                              )}"
+                              data-index="${index}"
+                            >
 
-                }).join('')
+                              Guardar
+
+                            </button>
+
+                          </td>
+
+                        </tr>
+                      `;
+
+                    }
+                  )
+                  .join('')
               : `
                 <tr>
 
                   <td colspan="4">
+
                     No hay parámetros configurados.
+
                   </td>
 
                 </tr>
@@ -4045,61 +5638,64 @@ function renderAdminConfig(data) {
 
 
   $$('.save-config')
-    .forEach(function (button) {
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        'click',
-        async function () {
+        button.addEventListener(
+          'click',
+          async function () {
 
-          const key =
-            button.dataset.key;
-
-
-          const index =
-            button.dataset.index;
+            const key =
+              button.dataset.key;
 
 
-          const input =
-            document.getElementById(
-              'configValue' +
-              index
-            );
+            const index =
+              button.dataset.index;
 
 
-          try {
-
-            await apiCall(
-              'adminSetConfiguration',
-              [
-                state.token,
-                key,
-                input.value
-              ]
-            );
+            const input =
+              document.getElementById(
+                'configValue' +
+                index
+              );
 
 
-            showToast(
-              'Configuración actualizada.'
-            );
+            try {
+
+              await apiCall(
+                'adminSetConfiguration',
+                [
+                  state.token,
+                  key,
+                  input.value
+                ]
+              );
 
 
-            await refreshAdminSection(
-              'config'
-            );
+              showToast(
+                'Configuración actualizada.'
+              );
 
 
-          } catch (error) {
+              await refreshAdminSection(
+                'config'
+              );
 
-            showToast(
-              error.message
-            );
+
+            } catch (error) {
+
+              showToast(
+                error.message
+              );
+
+            }
 
           }
+        );
 
-        }
-      );
+      }
+    );
 
-    });
 }
 
 
@@ -4120,18 +5716,22 @@ function adminServiceName(
 
 
   const service =
-    services.find(function (item) {
+    services.find(
+      function (item) {
 
-      return (
-        item.idServicio === id
-      );
+        return (
+          item.idServicio ===
+          id
+        );
 
-    });
+      }
+    );
 
 
   return service
     ? service.nombreServicio
     : '-';
+
 }
 
 
@@ -4141,18 +5741,22 @@ function adminTypeName(
 ) {
 
   const type =
-    types.find(function (item) {
+    types.find(
+      function (item) {
 
-      return (
-        item.idTipoUnidad === id
-      );
+        return (
+          item.idTipoUnidad ===
+          id
+        );
 
-    });
+      }
+    );
 
 
   return type
     ? type.nombre
     : '-';
+
 }
 
 
@@ -4169,13 +5773,16 @@ function adminTemplateName(
 
 
   const template =
-    templates.find(function (item) {
+    templates.find(
+      function (item) {
 
-      return (
-        item.idPlantilla === id
-      );
+        return (
+          item.idPlantilla ===
+          id
+        );
 
-    });
+      }
+    );
 
 
   return template
@@ -4185,4 +5792,5 @@ function adminTemplateName(
         template.version
       )
     : '-';
+
 }
