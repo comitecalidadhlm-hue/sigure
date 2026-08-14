@@ -1,1214 +1,80 @@
-/*************************************************
- * SIGURE
- * Cloudflare frontend
- * public/app.js
- * Administración > Servicios
- *************************************************/
+// =========================================================
+// ADMINISTRACIÓN - ENRUTADOR DE PESTAÑAS
+// =========================================================
 
-const state = {
-  token: null,
-  user: null,
-  currentView: 'dashboard',
-  adminData: null
-};
+function renderAdminSection(section, data) {
 
-document.addEventListener('DOMContentLoaded', function () {
-  bindBaseEvents();
-  restoreSession();
-});
-
-function $(s) {
-  return document.querySelector(s);
-}
-
-function $$(s) {
-  return Array.from(document.querySelectorAll(s));
-}
-
-function esc(v) {
-  return String(v ?? '').replace(
-    /[&<>"']/g,
-    c => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[c])
-  );
-}
-
-function fmtDate(v) {
-  if (!v) return '-';
-
-  const d = new Date(v);
-
-  return Number.isNaN(d.getTime())
-    ? String(v)
-    : d.toLocaleString('es-AR');
-}
-
-function asBool(v) {
-  return (
-    v === true ||
-    String(v).toLowerCase() === 'true' ||
-    String(v).toUpperCase() === 'VERDADERO'
-  );
-}
-
-function statusBadge(status) {
-  let css = 'warn';
-
-  if (
-    ['OPERATIVA', 'OPERATIVO', 'ACTIVO', 'ACTIVA'].includes(status)
-  ) {
-    css = 'ok';
-  } else if (
-    [
-      'NO_OPERATIVA',
-      'FUERA_DE_SERVICIO',
-      'INACTIVO',
-      'INACTIVA'
-    ].includes(status)
-  ) {
-    css = 'danger';
-  } else if (status === 'EN_REPOSICION') {
-    css = 'info';
+  if (section === 'services') {
+    return renderAdminServices(data);
   }
 
-  return `
-    <span class="status ${css}">
-      ${esc(status || '-')}
-    </span>
-  `;
-}
-
-function showToast(message) {
-  const container = $('#toast');
-
-  if (!container) {
-    alert(message);
-    return;
+  if (section === 'users') {
+    return renderAdminUsers(data);
   }
 
-  const toast = document.createElement('div');
-
-  toast.className = 'toast';
-  toast.textContent = message;
-
-  container.appendChild(toast);
-
-  setTimeout(function () {
-    toast.remove();
-  }, 3500);
-}
-
-function showLoginMessage(message) {
-  const element = $('#loginMessage');
-
-  if (!element) return;
-
-  if (!message) {
-    element.classList.add('hidden');
-    element.textContent = '';
-    return;
+  if (section === 'units') {
+    return renderAdminUnits(data);
   }
 
-  element.textContent = message;
-  element.classList.remove('hidden');
-}
-
-function openModal(html) {
-  const modal = $('#modal');
-  const body = $('#modalBody');
-
-  if (!modal || !body) return;
-
-  body.innerHTML = html;
-  modal.classList.remove('hidden');
-}
-
-function closeModal() {
-  const modal = $('#modal');
-  const body = $('#modalBody');
-
-  if (modal) {
-    modal.classList.add('hidden');
+  if (section === 'catalog') {
+    return renderAdminCatalog(data);
   }
 
-  if (body) {
-    body.innerHTML = '';
-  }
-}
-
-
-// =========================================================
-// API
-// =========================================================
-
-async function apiCall(action, args = []) {
-  const response = await fetch('/api', {
-    method: 'POST',
-
-    headers: {
-      'Content-Type': 'application/json'
-    },
-
-    body: JSON.stringify({
-      action: action,
-      args: Array.isArray(args) ? args : []
-    })
-  });
-
-  let payload;
-
-  try {
-    payload = await response.json();
-  } catch (error) {
-    throw new Error(
-      'La API de SIGURE devolvió una respuesta inválida.'
-    );
+  if (section === 'templates') {
+    return renderAdminTemplates(data);
   }
 
-  if (!response.ok) {
-    throw new Error(
-      payload.error ||
-      `Error HTTP ${response.status}`
-    );
+  if (section === 'types') {
+    return renderAdminTypes(data);
   }
 
-  if (payload.ok !== true) {
-    throw new Error(
-      payload.error ||
-      'Error de comunicación con SIGURE.'
-    );
+  if (section === 'config') {
+    return renderAdminConfig(data);
   }
 
-  const apiResult = payload.result;
-
-  if (!apiResult) {
-    throw new Error(
-      'SIGURE no devolvió resultado.'
-    );
-  }
-
-  if (apiResult.ok !== true) {
-    throw new Error(
-      apiResult.error ||
-      'La operación no pudo completarse.'
-    );
-  }
-
-  return apiResult.data;
 }
 
 
 // =========================================================
-// EVENTOS
+// ACTUALIZAR DATOS ADMINISTRATIVOS
 // =========================================================
 
-function bindBaseEvents() {
-  $('#loginForm')
-    ?.addEventListener(
-      'submit',
-      onLogin
-    );
+async function refreshAdminData() {
 
-  $('#togglePassword')
-    ?.addEventListener(
-      'click',
-      function () {
-        const input = $('#loginPass');
-
-        if (!input) return;
-
-        input.type =
-          input.type === 'password'
-            ? 'text'
-            : 'password';
-
-        this.textContent =
-          input.type === 'password'
-            ? 'Ver'
-            : 'Ocultar';
-      }
-    );
-
-  $('#logoutButton')
-    ?.addEventListener(
-      'click',
-      onLogout
-    );
-
-  $('#refreshButton')
-    ?.addEventListener(
-      'click',
-      function () {
-        renderView(
-          state.currentView
-        );
-      }
-    );
-
-  $('#mobileMenuButton')
-    ?.addEventListener(
-      'click',
-      function () {
-        $('.sidebar')
-          ?.classList
-          .toggle('open');
-      }
-    );
-
-  $('#modalClose')
-    ?.addEventListener(
-      'click',
-      closeModal
-    );
-
-  $('[data-close-modal="true"]')
-    ?.addEventListener(
-      'click',
-      closeModal
-    );
-
-  $$('#nav [data-view]')
-    .forEach(function (button) {
-      button.addEventListener(
-        'click',
-        function () {
-          $('.sidebar')
-            ?.classList
-            .remove('open');
-
-          renderView(
-            button.dataset.view
-          );
-        }
-      );
-    });
-}
-
-
-// =========================================================
-// LOGIN
-// =========================================================
-
-async function onLogin(event) {
-  event.preventDefault();
-
-  showLoginMessage('');
-
-  const button = $('#loginButton');
-
-  const usuario =
-    $('#loginUser')
-      .value
-      .trim();
-
-  const password =
-    $('#loginPass')
-      .value;
-
-  if (!usuario || !password) {
-    showLoginMessage(
-      'Ingrese usuario y contraseña.'
-    );
-
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = 'Ingresando...';
-
-  try {
-    const result =
-      await apiCall(
-        'login',
-        [
-          usuario,
-          password
-        ]
-      );
-
-    if (
-      !result ||
-      !result.token ||
-      !result.user
-    ) {
-      throw new Error(
-        'La sesión recibida desde SIGURE es inválida.'
-      );
-    }
-
-    state.token = result.token;
-    state.user = result.user;
-
-    saveSession();
-    enterApp();
-
-    await renderView(
-      'dashboard'
-    );
-
-  } catch (error) {
-    showLoginMessage(
-      error.message
-    );
-
-  } finally {
-    button.disabled = false;
-
-    button.textContent =
-      'Ingresar a SIGURE';
-  }
-}
-
-
-// =========================================================
-// LOGOUT
-// =========================================================
-
-async function onLogout() {
-  try {
-    if (state.token) {
-      await apiCall(
-        'logout',
-        [state.token]
-      );
-    }
-  } catch (error) {
-  }
-
-  clearSession();
-  window.location.reload();
-}
-
-
-// =========================================================
-// SESIÓN
-// =========================================================
-
-function saveSession() {
-  sessionStorage.setItem(
-    'sigure_token',
-    state.token
-  );
-
-  sessionStorage.setItem(
-    'sigure_user',
-    JSON.stringify(
-      state.user
-    )
-  );
-}
-
-function clearSession() {
-  state.token = null;
-  state.user = null;
-  state.adminData = null;
-
-  sessionStorage.removeItem(
-    'sigure_token'
-  );
-
-  sessionStorage.removeItem(
-    'sigure_user'
-  );
-}
-
-async function restoreSession() {
-  const token =
-    sessionStorage.getItem(
-      'sigure_token'
-    );
-
-  const rawUser =
-    sessionStorage.getItem(
-      'sigure_user'
-    );
-
-  if (!token || !rawUser) {
-    showLogin();
-    return;
-  }
-
-  try {
-    state.token = token;
-
-    state.user =
-      JSON.parse(
-        rawUser
-      );
-
-    await apiCall(
-      'getDashboard',
-      [state.token]
-    );
-
-    enterApp();
-
-    await renderView(
-      'dashboard'
-    );
-
-  } catch (error) {
-    clearSession();
-    showLogin();
-  }
-}
-
-function showLogin() {
-  $('#appView')
-    ?.classList
-    .add('hidden');
-
-  $('#loginView')
-    ?.classList
-    .remove('hidden');
-}
-
-function enterApp() {
-  $('#loginView')
-    ?.classList
-    .add('hidden');
-
-  $('#appView')
-    ?.classList
-    .remove('hidden');
-
-  if (!state.user) return;
-
-  $('#sessionName').textContent =
-    state.user.nombre ||
-    state.user.usuario ||
-    'Usuario';
-
-  $('#sidebarRole').textContent =
-    state.user.rol === 'CALIDAD'
-      ? 'Administración institucional'
-      : 'Gestión del servicio';
-
-  $('#sessionService').textContent =
-    state.user.rol === 'CALIDAD'
-      ? 'Área de Calidad'
-      : 'Usuario de servicio';
-
-  $$('.admin-only')
-    .forEach(function (element) {
-      element.classList.toggle(
-        'hidden',
-        state.user.rol !==
-          'CALIDAD'
-      );
-    });
-}
-
-
-// =========================================================
-// NAVEGACIÓN
-// =========================================================
-
-async function renderView(view) {
-  if (
-    view === 'admin' &&
-    state.user.rol !==
-      'CALIDAD'
-  ) {
-    view = 'dashboard';
-  }
-
-  state.currentView = view;
-
-  $$('#nav [data-view]')
-    .forEach(function (button) {
-      button.classList.toggle(
-        'active',
-        button.dataset.view ===
-          view
-      );
-    });
-
-  const titles = {
-    dashboard: [
-      'Panel',
-      'Resumen operativo de SIGURE'
-    ],
-
-    units: [
-      'Unidades',
-      'Carros, mochilas y botiquines asignados'
-    ],
-
-    alerts: [
-      'Alertas',
-      'Situaciones que requieren atención'
-    ],
-
-    feedback: [
-      'Auditorías / Feedback',
-      'Devoluciones y seguimiento de Calidad'
-    ],
-
-    admin: [
-      'Administración',
-      'Configuración institucional'
-    ]
-  };
-
-  $('#viewTitle').textContent =
-    titles[view][0];
-
-  $('#viewSubtitle').textContent =
-    titles[view][1];
-
-  $('#content').innerHTML =
-    '<div class="loading-card">Cargando información...</div>';
-
-  try {
-    if (
-      view ===
-      'dashboard'
-    ) {
-      return await renderDashboard();
-    }
-
-    if (
-      view ===
-      'units'
-    ) {
-      return await renderUnits();
-    }
-
-    if (
-      view ===
-      'alerts'
-    ) {
-      return await renderAlerts();
-    }
-
-    if (
-      view ===
-      'feedback'
-    ) {
-      return await renderFeedback();
-    }
-
-    if (
-      view ===
-      'admin'
-    ) {
-      return await renderAdmin();
-    }
-
-  } catch (error) {
-    $('#content').innerHTML = `
-      <div class="empty-state">
-
-        <strong>
-          No se pudo cargar la información.
-        </strong>
-
-        <p class="muted">
-          ${esc(error.message)}
-        </p>
-
-      </div>
-    `;
-  }
-}
-
-
-// =========================================================
-// DASHBOARD
-// =========================================================
-
-function metricCard(
-  label,
-  value
-) {
-  return `
-    <div class="card">
-
-      <div class="metric-label">
-        ${esc(label)}
-      </div>
-
-      <div class="metric-value">
-        ${esc(value)}
-      </div>
-
-    </div>
-  `;
-}
-
-async function renderDashboard() {
-  const d =
-    await apiCall(
-      'getDashboard',
-      [state.token]
-    );
-
-  const totals =
-    d?.totals || {};
-
-  const by =
-    d?.byStatus || {};
-
-  const units =
-    Array.isArray(d?.units)
-      ? d.units
-      : [];
-
-  const alerts =
-    Array.isArray(d?.alerts)
-      ? d.alerts
-      : [];
-
-  $('#content').innerHTML = `
-
-    <div class="grid metric-grid">
-
-      ${metricCard(
-        'Unidades',
-        totals.units || 0
-      )}
-
-      ${metricCard(
-        'Operativas',
-        by.OPERATIVA || 0
-      )}
-
-      ${metricCard(
-        'En reposición',
-        by.EN_REPOSICION || 0
-      )}
-
-      ${metricCard(
-        'No operativas',
-        by.NO_OPERATIVA || 0
-      )}
-
-      ${metricCard(
-        'Alertas abiertas',
-        totals.alerts || 0
-      )}
-
-      ${metricCard(
-        'Feedback pendiente',
-        totals.feedbackPending || 0
-      )}
-
-    </div>
-
-
-    <div class="section-title">
-
-      <h3>
-        Estado de unidades
-      </h3>
-
-    </div>
-
-
-    <div class="grid units-grid">
-
-      ${
-        units.length
-          ? units
-              .map(unitCard)
-              .join('')
-          : `
-            <div class="empty-state">
-              No hay unidades registradas para esta vista.
-            </div>
-          `
-      }
-
-    </div>
-
-
-    <div class="section-title">
-
-      <h3>
-        Alertas prioritarias
-      </h3>
-
-    </div>
-
-
-    ${alertsTable(alerts)}
-  `;
-}
-
-
-// =========================================================
-// UNIDADES
-// =========================================================
-
-async function renderUnits() {
-  const units =
-    await apiCall(
-      'listMyUnits',
-      [state.token]
-    );
-
-  $('#content').innerHTML = `
-
-    <div class="grid units-grid">
-
-      ${
-        Array.isArray(units) &&
-        units.length
-          ? units
-              .map(unitCard)
-              .join('')
-          : `
-            <div class="empty-state">
-              No hay unidades asignadas.
-            </div>
-          `
-      }
-
-    </div>
-  `;
-}
-
-function unitCard(unit) {
-  return `
-
-    <article class="card unit-card">
-
-      <div class="unit-head">
-
-        <div>
-
-          <div class="unit-code">
-            ${esc(unit.codigo)}
-          </div>
-
-          <div>
-            ${esc(unit.nombre)}
-          </div>
-
-        </div>
-
-        ${statusBadge(
-          unit.estado
-        )}
-
-      </div>
-
-
-      <div class="muted">
-
-        ${esc(
-          unit.tipoNombre ||
-          ''
-        )}
-
-        ${
-          unit.servicioNombre
-            ? ' · ' +
-              esc(
-                unit.servicioNombre
-              )
-            : ''
-        }
-
-      </div>
-
-
-      <div>
-
-        ${esc(
-          unit.ubicacion ||
-          'Sin ubicación informada'
-        )}
-
-      </div>
-
-
-      <div class="muted">
-
-        Próxima acción:
-
-        <strong>
-          ${fmtDate(
-            unit.proximaAccion
-          )}
-        </strong>
-
-      </div>
-
-    </article>
-  `;
-}
-
-
-// =========================================================
-// ALERTAS
-// =========================================================
-
-async function renderAlerts() {
-  const alerts =
-    await apiCall(
-      'listAlerts',
-      [state.token]
-    );
-
-  $('#content').innerHTML =
-    alertsTable(
-      Array.isArray(alerts)
-        ? alerts
-        : []
-    );
-}
-
-function alertsTable(alerts) {
-  return `
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Nivel</th>
-            <th>Tipo</th>
-            <th>Descripción</th>
-            <th>Fecha</th>
-          </tr>
-
-        </thead>
-
-
-        <tbody>
-
-          ${
-            alerts.length
-              ? alerts
-                  .map(function (alert) {
-                    return `
-
-                      <tr>
-
-                        <td>
-                          ${esc(
-                            alert.nivel
-                          )}
-                        </td>
-
-                        <td>
-                          ${esc(
-                            alert.tipo
-                          )}
-                        </td>
-
-                        <td>
-                          ${esc(
-                            alert.descripcion
-                          )}
-                        </td>
-
-                        <td>
-                          ${fmtDate(
-                            alert.fechaGeneracion
-                          )}
-                        </td>
-
-                      </tr>
-                    `;
-                  })
-                  .join('')
-              : `
-                <tr>
-
-                  <td colspan="4">
-                    Sin alertas abiertas.
-                  </td>
-
-                </tr>
-              `
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
-}
-
-
-// =========================================================
-// FEEDBACK
-// =========================================================
-
-async function renderFeedback() {
-  const rows =
-    await apiCall(
-      'listMyAuditFeedback',
-      [state.token]
-    );
-
-  $('#content').innerHTML = `
-
-    <div class="grid">
-
-      ${
-        Array.isArray(rows) &&
-        rows.length
-          ? rows
-              .map(function (row) {
-                return `
-
-                  <article class="card">
-
-                    <div class="unit-head">
-
-                      <strong>
-                        ${esc(
-                          row.estado ||
-                          'Feedback'
-                        )}
-                      </strong>
-
-                      <span class="muted">
-                        ${fmtDate(
-                          row.fechaEnvio
-                        )}
-                      </span>
-
-                    </div>
-
-
-                    <p>
-                      ${esc(
-                        row.mensajeCalidad ||
-                        row.descripcion ||
-                        ''
-                      )}
-                    </p>
-
-
-                    ${
-                      row.respuestaServicio
-                        ? `
-
-                          <div class="loading-card">
-
-                            <strong>
-                              Respuesta del servicio
-                            </strong>
-
-                            <p>
-                              ${esc(
-                                row.respuestaServicio
-                              )}
-                            </p>
-
-                          </div>
-                        `
-                        : ''
-                    }
-
-                  </article>
-                `;
-              })
-              .join('')
-          : `
-            <div class="empty-state">
-              No hay devoluciones de auditoría pendientes.
-            </div>
-          `
-      }
-
-    </div>
-  `;
-}
-
-
-// =========================================================
-// ADMINISTRACIÓN
-// =========================================================
-
-async function renderAdmin() {
-  if (
-    state.user.rol !==
-    'CALIDAD'
-  ) {
-    throw new Error(
-      'Acceso restringido.'
-    );
-  }
-
-  const data =
+  state.adminData =
     await apiCall(
       'adminGetMasterData',
       [state.token]
     );
 
-  state.adminData = data;
-
-  $('#content').innerHTML = `
-
-    <div class="admin-tabs">
-
-      <button
-        class="admin-tab active"
-        data-admin-tab="services">
-
-        Servicios
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="users">
-
-        Usuarios
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="units">
-
-        Unidades
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="catalog">
-
-        Catálogo
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="templates">
-
-        Plantillas
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="types">
-
-        Frecuencias
-
-      </button>
-
-
-      <button
-        class="admin-tab"
-        data-admin-tab="config">
-
-        Configuración
-
-      </button>
-
-    </div>
-
-
-    <div id="adminPanel"></div>
-  `;
-
-  $$('.admin-tab')
-    .forEach(function (button) {
-      button.addEventListener(
-        'click',
-        function () {
-          $$('.admin-tab')
-            .forEach(
-              function (tab) {
-                tab.classList.remove(
-                  'active'
-                );
-              }
-            );
-
-          button.classList.add(
-            'active'
-          );
-
-          renderAdminSection(
-            button.dataset.adminTab,
-            data
-          );
-        }
-      );
-    });
-
-  renderAdminSection(
-    'services',
-    data
-  );
+  return state.adminData;
 }
 
-function renderAdminSection(
-  section,
-  data
-) {
-  if (
-    section ===
-    'services'
-  ) {
-    return renderAdminServices(
-      data
-    );
-  }
 
-  const names = {
-    users: 'Usuarios',
-    units: 'Unidades',
-    catalog: 'Catálogo',
-    templates: 'Plantillas',
-    types: 'Frecuencias',
-    config: 'Configuración'
-  };
+async function refreshAdminSection(section) {
 
-  $('#adminPanel').innerHTML = `
+  const data =
+    await refreshAdminData();
 
-    <div class="card">
+  renderAdminSection(
+    section,
+    data
+  );
 
-      <h3>
-        ${esc(
-          names[section] ||
-          section
-        )}
-      </h3>
-
-      <p class="muted">
-        Este módulo será incorporado en la siguiente etapa.
-      </p>
-
-    </div>
-  `;
 }
 
 
 // =========================================================
-// ADMINISTRACIÓN > SERVICIOS
+// ADMIN - SERVICIOS
 // =========================================================
 
 function renderAdminServices(data) {
+
   const services =
-    Array.isArray(
-      data.services
-    )
+    Array.isArray(data.services)
       ? data.services
       : [];
+
 
   $('#adminPanel').innerHTML = `
 
@@ -1228,8 +94,8 @@ function renderAdminServices(data) {
 
 
       <button
-        id="newServiceButton"
-        class="button primary">
+        class="button primary"
+        id="adminNewService">
 
         Nuevo servicio
 
@@ -1258,81 +124,56 @@ function renderAdminServices(data) {
 
           ${
             services.length
-              ? services
-                  .map(
-                    function (service) {
-                      const active =
-                        asBool(
-                          service.activo
-                        );
+              ?
+              services.map(function(service) {
 
-                      return `
+                const active =
+                  asBool(service.activo);
 
-                        <tr>
+                return `
 
-                          <td>
+                  <tr>
 
-                            <strong>
-                              ${esc(
-                                service.nombreServicio
-                              )}
-                            </strong>
+                    <td>
+                      <strong>
+                        ${esc(service.nombreServicio)}
+                      </strong>
+                    </td>
 
-                          </td>
+                    <td>
+                      ${esc(service.establecimiento || '-')}
+                    </td>
 
+                    <td>
+                      ${
+                        active
+                          ? statusBadge('ACTIVO')
+                          : statusBadge('INACTIVO')
+                      }
+                    </td>
 
-                          <td>
+                    <td>
 
-                            ${esc(
-                              service.establecimiento ||
-                              '-'
-                            )}
+                      <button
+                        class="button secondary edit-service"
+                        data-id="${esc(service.idServicio)}">
 
-                          </td>
+                        Editar
 
+                      </button>
 
-                          <td>
+                    </td>
 
-                            ${
-                              active
-                                ? statusBadge(
-                                    'ACTIVO'
-                                  )
-                                : statusBadge(
-                                    'INACTIVO'
-                                  )
-                            }
+                  </tr>
+                `;
 
-                          </td>
-
-
-                          <td>
-
-                            <button
-                              class="button secondary edit-service"
-                              data-id="${esc(
-                                service.idServicio
-                              )}">
-
-                              Editar
-
-                            </button>
-
-                          </td>
-
-                        </tr>
-                      `;
-                    }
-                  )
-                  .join('')
-              : `
-
+              }).join('')
+              :
+              `
                 <tr>
-
                   <td colspan="4">
                     No hay servicios registrados.
                   </td>
-
                 </tr>
               `
           }
@@ -1345,7 +186,7 @@ function renderAdminServices(data) {
   `;
 
 
-  $('#newServiceButton')
+  $('#adminNewService')
     ?.addEventListener(
       'click',
       openNewService
@@ -1353,39 +194,36 @@ function renderAdminServices(data) {
 
 
   $$('.edit-service')
-    .forEach(
-      function (button) {
+    .forEach(function(button) {
 
-        button.addEventListener(
-          'click',
-          function () {
+      button.addEventListener(
+        'click',
+        function() {
 
-            const service =
-              services.find(
-                function (item) {
+          const service =
+            services.find(function(item) {
 
-                  return (
-                    item.idServicio ===
-                    button.dataset.id
-                  );
-
-                }
+              return (
+                item.idServicio ===
+                button.dataset.id
               );
 
+            });
 
-            if (service) {
 
-              openEditService(
-                service
-              );
+          if (service) {
 
-            }
+            openEditService(
+              service
+            );
 
           }
-        );
 
-      }
-    );
+        }
+      );
+
+    });
+
 }
 
 
@@ -1401,11 +239,9 @@ function openNewService() {
       Nuevo servicio
     </h2>
 
-
     <form
       id="serviceForm"
       class="form-stack">
-
 
       <label>
 
@@ -1443,7 +279,7 @@ function openNewService() {
   $('#serviceForm')
     .addEventListener(
       'submit',
-      async function (event) {
+      async function(event) {
 
         event.preventDefault();
 
@@ -1454,17 +290,12 @@ function openNewService() {
             'adminCreateService',
             [
               state.token,
-
               {
                 nombreServicio:
-                  $('#svcName')
-                    .value
-                    .trim(),
+                  $('#svcName').value.trim(),
 
                 establecimiento:
-                  $('#svcSite')
-                    .value
-                    .trim()
+                  $('#svcSite').value.trim()
               }
             ]
           );
@@ -1478,10 +309,12 @@ function openNewService() {
           closeModal();
 
 
-          await renderAdmin();
+          await refreshAdminSection(
+            'services'
+          );
 
 
-        } catch (error) {
+        } catch(error) {
 
           showToast(
             error.message
@@ -1491,6 +324,7 @@ function openNewService() {
 
       }
     );
+
 }
 
 
@@ -1501,9 +335,7 @@ function openNewService() {
 function openEditService(service) {
 
   const active =
-    asBool(
-      service.activo
-    );
+    asBool(service.activo);
 
 
   openModal(`
@@ -1512,11 +344,9 @@ function openEditService(service) {
       Editar servicio
     </h2>
 
-
     <form
       id="editServiceForm"
       class="form-stack">
-
 
       <label>
 
@@ -1524,9 +354,7 @@ function openEditService(service) {
 
         <input
           id="editServiceName"
-          value="${esc(
-            service.nombreServicio
-          )}"
+          value="${esc(service.nombreServicio)}"
           required>
 
       </label>
@@ -1538,10 +366,7 @@ function openEditService(service) {
 
         <input
           id="editServiceSite"
-          value="${esc(
-            service.establecimiento ||
-            ''
-          )}">
+          value="${esc(service.establecimiento || '')}">
 
       </label>
 
@@ -1553,32 +378,21 @@ function openEditService(service) {
         <select
           id="editServiceActive">
 
-
           <option
             value="true"
-            ${
-              active
-                ? 'selected'
-                : ''
-            }>
+            ${active ? 'selected' : ''}>
 
             Activo
 
           </option>
 
-
           <option
             value="false"
-            ${
-              !active
-                ? 'selected'
-                : ''
-            }>
+            ${!active ? 'selected' : ''}>
 
             Inactivo
 
           </option>
-
 
         </select>
 
@@ -1600,7 +414,7 @@ function openEditService(service) {
   $('#editServiceForm')
     .addEventListener(
       'submit',
-      async function (event) {
+      async function(event) {
 
         event.preventDefault();
 
@@ -1611,24 +425,16 @@ function openEditService(service) {
             'adminUpdateService',
             [
               state.token,
-
               service.idServicio,
-
               {
                 nombreServicio:
-                  $('#editServiceName')
-                    .value
-                    .trim(),
+                  $('#editServiceName').value.trim(),
 
                 establecimiento:
-                  $('#editServiceSite')
-                    .value
-                    .trim(),
+                  $('#editServiceSite').value.trim(),
 
                 activo:
-                  $('#editServiceActive')
-                    .value ===
-                  'true'
+                  $('#editServiceActive').value === 'true'
               }
             ]
           );
@@ -1642,10 +448,12 @@ function openEditService(service) {
           closeModal();
 
 
-          await renderAdmin();
+          await refreshAdminSection(
+            'services'
+          );
 
 
-        } catch (error) {
+        } catch(error) {
 
           showToast(
             error.message
@@ -1655,4 +463,2066 @@ function openEditService(service) {
 
       }
     );
+
+}
+
+
+// =========================================================
+// ADMIN - USUARIOS
+// =========================================================
+
+function renderAdminUsers(data) {
+
+  const users =
+    Array.isArray(data.users)
+      ? data.users
+      : [];
+
+  const services =
+    Array.isArray(data.services)
+      ? data.services
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title admin-section-title">
+
+      <div>
+
+        <h3>
+          Usuarios
+        </h3>
+
+        <div class="muted">
+          Un usuario operativo activo por servicio.
+        </div>
+
+      </div>
+
+
+      <button
+        class="button primary"
+        id="adminNewUser">
+
+        Nuevo usuario
+
+      </button>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Usuario</th>
+            <th>Nombre</th>
+            <th>Rol</th>
+            <th>Servicio</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            users.length
+              ?
+              users.map(function(user) {
+
+                return `
+
+                  <tr>
+
+                    <td>
+                      <strong>
+                        ${esc(user.usuario)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      ${esc(user.nombre)}
+                    </td>
+
+                    <td>
+                      ${esc(user.rol)}
+                    </td>
+
+                    <td>
+                      ${esc(
+                        adminServiceName(
+                          user.idServicio,
+                          services
+                        )
+                      )}
+                    </td>
+
+                    <td>
+                      ${statusBadge(user.estado)}
+                    </td>
+
+                    <td>
+
+                      ${
+                        user.rol === 'SERVICIO'
+                          ?
+                          `
+                            <div class="actions">
+
+                              <button
+                                class="button secondary reset-user"
+                                data-id="${esc(user.idUsuario)}">
+
+                                Nueva clave
+
+                              </button>
+
+
+                              <button
+                                class="button secondary toggle-user"
+                                data-id="${esc(user.idUsuario)}"
+                                data-status="${
+                                  user.estado === 'ACTIVO'
+                                    ? 'INACTIVO'
+                                    : 'ACTIVO'
+                                }">
+
+                                ${
+                                  user.estado === 'ACTIVO'
+                                    ? 'Desactivar'
+                                    : 'Activar'
+                                }
+
+                              </button>
+
+                            </div>
+                          `
+                          :
+                          'Administrador'
+                      }
+
+                    </td>
+
+                  </tr>
+                `;
+
+              }).join('')
+              :
+              `
+                <tr>
+                  <td colspan="6">
+                    No hay usuarios registrados.
+                  </td>
+                </tr>
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  $('#adminNewUser')
+    ?.addEventListener(
+      'click',
+      function() {
+
+        openNewUser(
+          services
+        );
+
+      }
+    );
+
+
+  $$('.toggle-user')
+    .forEach(function(button) {
+
+      button.addEventListener(
+        'click',
+        async function() {
+
+          try {
+
+            await apiCall(
+              'adminSetUserStatus',
+              [
+                state.token,
+                button.dataset.id,
+                button.dataset.status
+              ]
+            );
+
+
+            showToast(
+              'Estado actualizado.'
+            );
+
+
+            await refreshAdminSection(
+              'users'
+            );
+
+
+          } catch(error) {
+
+            showToast(
+              error.message
+            );
+
+          }
+
+        }
+      );
+
+    });
+
+
+  $$('.reset-user')
+    .forEach(function(button) {
+
+      button.addEventListener(
+        'click',
+        function() {
+
+          openResetPassword(
+            button.dataset.id
+          );
+
+        }
+      );
+
+    });
+
+}
+
+
+// =========================================================
+// NUEVO USUARIO
+// =========================================================
+
+function openNewUser(services) {
+
+  const activeServices =
+    services.filter(function(service) {
+
+      return asBool(
+        service.activo
+      );
+
+    });
+
+
+  openModal(`
+
+    <h2>
+      Nuevo usuario de servicio
+    </h2>
+
+    <form
+      id="userForm"
+      class="form-stack">
+
+      <label>
+
+        Nombre
+
+        <input
+          id="usrName"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Usuario
+
+        <input
+          id="usrUser"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Contraseña temporal
+
+        <input
+          id="usrPass"
+          type="password"
+          minlength="8"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Servicio
+
+        <select
+          id="usrSvc"
+          required>
+
+          <option value="">
+            Seleccione
+          </option>
+
+          ${
+            activeServices.map(function(service) {
+
+              return `
+
+                <option
+                  value="${esc(service.idServicio)}">
+
+                  ${esc(service.nombreServicio)}
+
+                </option>
+              `;
+
+            }).join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Crear usuario
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#userForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        try {
+
+          await apiCall(
+            'adminCreateServiceUser',
+            [
+              state.token,
+              {
+                nombre:
+                  $('#usrName').value.trim(),
+
+                usuario:
+                  $('#usrUser').value.trim(),
+
+                password:
+                  $('#usrPass').value,
+
+                idServicio:
+                  $('#usrSvc').value
+              }
+            ]
+          );
+
+
+          showToast(
+            'Usuario creado.'
+          );
+
+
+          closeModal();
+
+
+          await refreshAdminSection(
+            'users'
+          );
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// RESET DE CONTRASEÑA
+// =========================================================
+
+function openResetPassword(userId) {
+
+  openModal(`
+
+    <h2>
+      Restablecer contraseña
+    </h2>
+
+    <form
+      id="resetPasswordForm"
+      class="form-stack">
+
+      <label>
+
+        Nueva contraseña temporal
+
+        <input
+          id="resetPasswordValue"
+          type="password"
+          minlength="8"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Confirmar contraseña
+
+        <input
+          id="resetPasswordConfirm"
+          type="password"
+          minlength="8"
+          required>
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Restablecer contraseña
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#resetPasswordForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        const password =
+          $('#resetPasswordValue').value;
+
+        const confirm =
+          $('#resetPasswordConfirm').value;
+
+
+        if(password !== confirm) {
+
+          showToast(
+            'Las contraseñas no coinciden.'
+          );
+
+          return;
+
+        }
+
+
+        try {
+
+          await apiCall(
+            'adminResetUserPassword',
+            [
+              state.token,
+              userId,
+              password
+            ]
+          );
+
+
+          showToast(
+            'Contraseña temporal actualizada.'
+          );
+
+
+          closeModal();
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// ADMIN - UNIDADES
+// =========================================================
+
+function renderAdminUnits(data) {
+
+  const units =
+    Array.isArray(data.units)
+      ? data.units
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title admin-section-title">
+
+      <div>
+
+        <h3>
+          Unidades de Respuesta a Emergencias
+        </h3>
+
+        <div class="muted">
+          Carros de paro, carros de urgencias, mochilas y botiquines.
+        </div>
+
+      </div>
+
+
+      <button
+        class="button primary"
+        id="adminNewUnit">
+
+        Nueva unidad
+
+      </button>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Servicio</th>
+            <th>Plantilla</th>
+            <th>Estado</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            units.length
+              ?
+              units.map(function(unit) {
+
+                return `
+
+                  <tr>
+
+                    <td>
+                      <strong>
+                        ${esc(unit.codigo)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      ${esc(unit.nombre)}
+                    </td>
+
+                    <td>
+                      ${esc(
+                        adminTypeName(
+                          unit.idTipoUnidad,
+                          data.types
+                        )
+                      )}
+                    </td>
+
+                    <td>
+                      ${esc(
+                        adminServiceName(
+                          unit.idServicio,
+                          data.services
+                        )
+                      )}
+                    </td>
+
+                    <td>
+                      ${esc(
+                        adminTemplateName(
+                          unit.idPlantilla,
+                          data.templates
+                        )
+                      )}
+                    </td>
+
+                    <td>
+                      ${statusBadge(unit.estado)}
+                    </td>
+
+                  </tr>
+                `;
+
+              }).join('')
+              :
+              `
+                <tr>
+                  <td colspan="6">
+                    No hay unidades registradas.
+                  </td>
+                </tr>
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  $('#adminNewUnit')
+    ?.addEventListener(
+      'click',
+      function() {
+
+        openNewUnit(
+          data.services,
+          data.types,
+          data.templates
+        );
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// NUEVA UNIDAD
+// =========================================================
+
+function openNewUnit(
+  services,
+  types,
+  templates
+) {
+
+  openModal(`
+
+    <h2>
+      Nueva unidad
+    </h2>
+
+    <form
+      id="unitForm"
+      class="form-stack">
+
+      <label>
+
+        Código institucional
+
+        <input
+          id="uniCode"
+          required
+          placeholder="Ej.: URE-CP-CPA-001">
+
+      </label>
+
+
+      <label>
+
+        Nombre
+
+        <input
+          id="uniName"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Tipo
+
+        <select
+          id="uniType"
+          required>
+
+          ${
+            types.map(function(type) {
+
+              return `
+
+                <option
+                  value="${esc(type.idTipoUnidad)}">
+
+                  ${esc(type.nombre)}
+
+                </option>
+              `;
+
+            }).join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Servicio
+
+        <select
+          id="uniSvc"
+          required>
+
+          ${
+            services
+              .filter(function(service) {
+
+                return asBool(
+                  service.activo
+                );
+
+              })
+              .map(function(service) {
+
+                return `
+
+                  <option
+                    value="${esc(service.idServicio)}">
+
+                    ${esc(service.nombreServicio)}
+
+                  </option>
+                `;
+
+              })
+              .join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Ubicación
+
+        <input
+          id="uniLocation">
+
+      </label>
+
+
+      <label>
+
+        Plantilla
+
+        <select
+          id="uniTpl">
+
+          <option value="">
+            Sin plantilla
+          </option>
+
+          ${
+            templates.map(function(template) {
+
+              return `
+
+                <option
+                  value="${esc(template.idPlantilla)}">
+
+                  ${esc(template.nombre)}
+                  v${esc(template.version)}
+
+                </option>
+              `;
+
+            }).join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Crear unidad
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#unitForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        try {
+
+          await apiCall(
+            'adminCreateUnit',
+            [
+              state.token,
+              {
+                codigo:
+                  $('#uniCode').value.trim(),
+
+                nombre:
+                  $('#uniName').value.trim(),
+
+                idTipoUnidad:
+                  $('#uniType').value,
+
+                idServicio:
+                  $('#uniSvc').value,
+
+                ubicacion:
+                  $('#uniLocation').value.trim(),
+
+                idPlantilla:
+                  $('#uniTpl').value
+              }
+            ]
+          );
+
+
+          showToast(
+            'Unidad creada.'
+          );
+
+
+          closeModal();
+
+
+          await refreshAdminSection(
+            'units'
+          );
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// ADMIN - CATÁLOGO
+// =========================================================
+
+function renderAdminCatalog(data) {
+
+  const catalog =
+    Array.isArray(data.catalog)
+      ? data.catalog
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title admin-section-title">
+
+      <div>
+
+        <h3>
+          Catálogo maestro
+        </h3>
+
+        <div class="muted">
+          Insumos disponibles para las unidades.
+        </div>
+
+      </div>
+
+
+      <button
+        class="button primary"
+        id="adminNewItem">
+
+        Nuevo insumo
+
+      </button>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Código</th>
+            <th>Insumo</th>
+            <th>Categoría</th>
+            <th>Unidad</th>
+            <th>Crítico</th>
+            <th>Estado</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            catalog.length
+              ?
+              catalog.map(function(item) {
+
+                return `
+
+                  <tr>
+
+                    <td>
+                      ${esc(item.codigo)}
+                    </td>
+
+                    <td>
+                      <strong>
+                        ${esc(item.nombre)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      ${esc(item.categoria)}
+                    </td>
+
+                    <td>
+                      ${esc(item.unidadMedida)}
+                    </td>
+
+                    <td>
+                      ${
+                        asBool(item.esCritico)
+                          ? statusBadge('CRÍTICO')
+                          : '-'
+                      }
+                    </td>
+
+                    <td>
+                      ${
+                        asBool(item.activo)
+                          ? statusBadge('ACTIVO')
+                          : statusBadge('INACTIVO')
+                      }
+                    </td>
+
+                  </tr>
+                `;
+
+              }).join('')
+              :
+              `
+                <tr>
+                  <td colspan="6">
+                    No hay insumos registrados.
+                  </td>
+                </tr>
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  $('#adminNewItem')
+    ?.addEventListener(
+      'click',
+      openNewItem
+    );
+
+}
+
+
+// =========================================================
+// NUEVO INSUMO
+// =========================================================
+
+function openNewItem() {
+
+  openModal(`
+
+    <h2>
+      Nuevo insumo
+    </h2>
+
+    <form
+      id="itemForm"
+      class="form-stack">
+
+      <label>
+
+        Código
+
+        <input
+          id="itmCode"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Nombre
+
+        <input
+          id="itmName"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Categoría
+
+        <input
+          id="itmCat"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Unidad de medida
+
+        <input
+          id="itmUnit"
+          required>
+
+      </label>
+
+
+      <label>
+
+        <input
+          id="itmCritical"
+          type="checkbox"
+          style="width:auto">
+
+        Insumo crítico
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Crear insumo
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#itemForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        try {
+
+          await apiCall(
+            'adminCreateItem',
+            [
+              state.token,
+              {
+                codigo:
+                  $('#itmCode').value.trim(),
+
+                nombre:
+                  $('#itmName').value.trim(),
+
+                categoria:
+                  $('#itmCat').value.trim(),
+
+                unidadMedida:
+                  $('#itmUnit').value.trim(),
+
+                esCritico:
+                  $('#itmCritical').checked
+              }
+            ]
+          );
+
+
+          showToast(
+            'Insumo creado.'
+          );
+
+
+          closeModal();
+
+
+          await refreshAdminSection(
+            'catalog'
+          );
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// ADMIN - PLANTILLAS
+// =========================================================
+
+function renderAdminTemplates(data) {
+
+  const templates =
+    Array.isArray(data.templates)
+      ? data.templates
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title admin-section-title">
+
+      <div>
+
+        <h3>
+          Plantillas
+        </h3>
+
+        <div class="muted">
+          Composición estandarizada de las unidades.
+        </div>
+
+      </div>
+
+
+      <button
+        class="button primary"
+        id="adminNewTemplate">
+
+        Nueva plantilla
+
+      </button>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Plantilla</th>
+            <th>Versión</th>
+            <th>Tipo</th>
+            <th>Vigencia</th>
+            <th>Acción</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            templates.length
+              ?
+              templates.map(function(template) {
+
+                return `
+
+                  <tr>
+
+                    <td>
+                      <strong>
+                        ${esc(template.nombre)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      ${esc(template.version)}
+                    </td>
+
+                    <td>
+                      ${esc(
+                        adminTypeName(
+                          template.idTipoUnidad,
+                          data.types
+                        )
+                      )}
+                    </td>
+
+                    <td>
+                      ${fmtDate(template.fechaVigencia)}
+                    </td>
+
+                    <td>
+
+                      <button
+                        class="button secondary add-template-item"
+                        data-id="${esc(template.idPlantilla)}">
+
+                        Agregar contenido
+
+                      </button>
+
+                    </td>
+
+                  </tr>
+                `;
+
+              }).join('')
+              :
+              `
+                <tr>
+                  <td colspan="5">
+                    No hay plantillas registradas.
+                  </td>
+                </tr>
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  $('#adminNewTemplate')
+    ?.addEventListener(
+      'click',
+      function() {
+
+        openNewTemplate(
+          data.types
+        );
+
+      }
+    );
+
+
+  $$('.add-template-item')
+    .forEach(function(button) {
+
+      button.addEventListener(
+        'click',
+        function() {
+
+          openTemplateItem(
+            button.dataset.id,
+            data.catalog
+          );
+
+        }
+      );
+
+    });
+
+}
+
+
+// =========================================================
+// NUEVA PLANTILLA
+// =========================================================
+
+function openNewTemplate(types) {
+
+  openModal(`
+
+    <h2>
+      Nueva plantilla
+    </h2>
+
+    <form
+      id="templateForm"
+      class="form-stack">
+
+      <label>
+
+        Nombre
+
+        <input
+          id="tplName"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Versión
+
+        <input
+          id="tplVersion"
+          value="1.0"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Tipo de unidad
+
+        <select
+          id="tplType"
+          required>
+
+          ${
+            types.map(function(type) {
+
+              return `
+
+                <option
+                  value="${esc(type.idTipoUnidad)}">
+
+                  ${esc(type.nombre)}
+
+                </option>
+              `;
+
+            }).join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Fecha de vigencia
+
+        <input
+          id="tplDate"
+          type="date">
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Crear plantilla
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#templateForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        try {
+
+          await apiCall(
+            'adminCreateTemplate',
+            [
+              state.token,
+              {
+                nombre:
+                  $('#tplName').value.trim(),
+
+                version:
+                  $('#tplVersion').value.trim(),
+
+                idTipoUnidad:
+                  $('#tplType').value,
+
+                fechaVigencia:
+                  $('#tplDate').value
+              }
+            ]
+          );
+
+
+          showToast(
+            'Plantilla creada.'
+          );
+
+
+          closeModal();
+
+
+          await refreshAdminSection(
+            'templates'
+          );
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// AGREGAR CONTENIDO A PLANTILLA
+// =========================================================
+
+function openTemplateItem(
+  templateId,
+  catalog
+) {
+
+  openModal(`
+
+    <h2>
+      Agregar contenido
+    </h2>
+
+    <form
+      id="templateItemForm"
+      class="form-stack">
+
+      <label>
+
+        Insumo
+
+        <select
+          id="tpiItem">
+
+          ${
+            catalog.map(function(item) {
+
+              return `
+
+                <option
+                  value="${esc(item.idInsumo)}">
+
+                  ${esc(item.codigo)}
+                  ·
+                  ${esc(item.nombre)}
+
+                </option>
+              `;
+
+            }).join('')
+          }
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Compartimiento
+
+        <input
+          id="tpiComp">
+
+      </label>
+
+
+      <label>
+
+        Cantidad requerida
+
+        <input
+          id="tpiReq"
+          type="number"
+          min="1"
+          value="1"
+          required>
+
+      </label>
+
+
+      <label>
+
+        Cantidad mínima
+
+        <input
+          id="tpiMin"
+          type="number"
+          min="0"
+          value="1">
+
+      </label>
+
+
+      <label>
+
+        <input
+          id="tpiCritical"
+          type="checkbox"
+          style="width:auto">
+
+        Crítico
+
+      </label>
+
+
+      <label>
+
+        Orden
+
+        <input
+          id="tpiOrder"
+          type="number"
+          value="0">
+
+      </label>
+
+
+      <button
+        type="submit"
+        class="button primary">
+
+        Agregar insumo
+
+      </button>
+
+    </form>
+  `);
+
+
+  $('#templateItemForm')
+    .addEventListener(
+      'submit',
+      async function(event) {
+
+        event.preventDefault();
+
+
+        try {
+
+          await apiCall(
+            'adminAddTemplateItem',
+            [
+              state.token,
+              {
+                idPlantilla:
+                  templateId,
+
+                idInsumo:
+                  $('#tpiItem').value,
+
+                compartimiento:
+                  $('#tpiComp').value.trim(),
+
+                cantidadRequerida:
+                  Number($('#tpiReq').value),
+
+                cantidadMinima:
+                  Number($('#tpiMin').value),
+
+                esCritico:
+                  $('#tpiCritical').checked,
+
+                orden:
+                  Number($('#tpiOrder').value)
+              }
+            ]
+          );
+
+
+          showToast(
+            'Insumo agregado a la plantilla.'
+          );
+
+
+          closeModal();
+
+
+        } catch(error) {
+
+          showToast(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+// =========================================================
+// ADMIN - FRECUENCIAS
+// =========================================================
+
+function renderAdminTypes(data) {
+
+  const types =
+    Array.isArray(data.types)
+      ? data.types
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title">
+
+      <div>
+
+        <h3>
+          Frecuencias
+        </h3>
+
+        <div class="muted">
+          Visorías y controles preventivos.
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="grid units-grid">
+
+      ${
+        types.map(function(type) {
+
+          return `
+
+            <div class="card">
+
+              <h3>
+                ${esc(type.nombre)}
+              </h3>
+
+
+              <label>
+
+                Visoría cada (horas)
+
+                <input
+                  class="type-visoria"
+                  data-id="${esc(type.idTipoUnidad)}"
+                  type="number"
+                  min="1"
+                  value="${esc(type.frecuenciaVisoriaHoras)}">
+
+              </label>
+
+
+              <label>
+
+                Preventivo cada (días)
+
+                <input
+                  class="type-preventivo"
+                  data-id="${esc(type.idTipoUnidad)}"
+                  type="number"
+                  min="1"
+                  value="${esc(type.frecuenciaPreventivoDias)}">
+
+              </label>
+
+
+              <button
+                class="button primary save-type"
+                data-id="${esc(type.idTipoUnidad)}">
+
+                Guardar
+
+              </button>
+
+            </div>
+          `;
+
+        }).join('')
+      }
+
+    </div>
+  `;
+
+
+  $$('.save-type')
+    .forEach(function(button) {
+
+      button.addEventListener(
+        'click',
+        async function() {
+
+          const id =
+            button.dataset.id;
+
+
+          const visoria =
+            document.querySelector(
+              '.type-visoria[data-id="' +
+              id +
+              '"]'
+            );
+
+
+          const preventivo =
+            document.querySelector(
+              '.type-preventivo[data-id="' +
+              id +
+              '"]'
+            );
+
+
+          try {
+
+            await apiCall(
+              'adminUpdateUnitType',
+              [
+                state.token,
+                id,
+                {
+                  frecuenciaVisoriaHoras:
+                    Number(visoria.value),
+
+                  frecuenciaPreventivoDias:
+                    Number(preventivo.value)
+                }
+              ]
+            );
+
+
+            showToast(
+              'Frecuencia actualizada.'
+            );
+
+
+          } catch(error) {
+
+            showToast(
+              error.message
+            );
+
+          }
+
+        }
+      );
+
+    });
+
+}
+
+
+// =========================================================
+// ADMIN - CONFIGURACIÓN
+// =========================================================
+
+function renderAdminConfig(data) {
+
+  const config =
+    Array.isArray(data.config)
+      ? data.config
+      : [];
+
+
+  $('#adminPanel').innerHTML = `
+
+    <div class="section-title">
+
+      <div>
+
+        <h3>
+          Configuración general
+        </h3>
+
+        <div class="muted">
+          Parámetros institucionales de SIGURE.
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Parámetro</th>
+            <th>Valor</th>
+            <th>Descripción</th>
+            <th>Acción</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            config.map(function(row) {
+
+              return `
+
+                <tr>
+
+                  <td>
+                    <strong>
+                      ${esc(row.clave)}
+                    </strong>
+                  </td>
+
+                  <td>
+
+                    <input
+                      class="config-value"
+                      data-key="${esc(row.clave)}"
+                      value="${esc(row.valor)}">
+
+                  </td>
+
+                  <td>
+                    ${esc(row.descripcion || '')}
+                  </td>
+
+                  <td>
+
+                    <button
+                      class="button secondary save-config"
+                      data-key="${esc(row.clave)}">
+
+                      Guardar
+
+                    </button>
+
+                  </td>
+
+                </tr>
+              `;
+
+            }).join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+
+
+  $$('.save-config')
+    .forEach(function(button) {
+
+      button.addEventListener(
+        'click',
+        async function() {
+
+          const key =
+            button.dataset.key;
+
+
+          const input =
+            document.querySelector(
+              '.config-value[data-key="' +
+              key +
+              '"]'
+            );
+
+
+          try {
+
+            await apiCall(
+              'adminSetConfiguration',
+              [
+                state.token,
+                key,
+                input.value
+              ]
+            );
+
+
+            showToast(
+              'Configuración actualizada.'
+            );
+
+
+          } catch(error) {
+
+            showToast(
+              error.message
+            );
+
+          }
+
+        }
+      );
+
+    });
+
+}
+
+
+// =========================================================
+// HELPERS ADMINISTRACIÓN
+// =========================================================
+
+function adminServiceName(
+  id,
+  services
+) {
+
+  if(!id) {
+
+    return 'Área de Calidad';
+
+  }
+
+
+  const service =
+    services.find(function(item) {
+
+      return (
+        item.idServicio === id
+      );
+
+    });
+
+
+  return service
+    ? service.nombreServicio
+    : '-';
+}
+
+
+function adminTypeName(
+  id,
+  types
+) {
+
+  const type =
+    types.find(function(item) {
+
+      return (
+        item.idTipoUnidad === id
+      );
+
+    });
+
+
+  return type
+    ? type.nombre
+    : '-';
+}
+
+
+function adminTemplateName(
+  id,
+  templates
+) {
+
+  if(!id) {
+
+    return 'Sin plantilla';
+
+  }
+
+
+  const template =
+    templates.find(function(item) {
+
+      return (
+        item.idPlantilla === id
+      );
+
+    });
+
+
+  return template
+    ? (
+        template.nombre +
+        ' v' +
+        template.version
+      )
+    : '-';
 }
