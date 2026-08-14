@@ -1,10 +1,7 @@
 {
   "name": "sigure",
-  "main": "src/index.js",
   "compatibility_date": "2026-08-14",
-  "observability": {
-    "enabled": true
-  },
+  "main": "src/index.js",
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
