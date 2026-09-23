@@ -368,68 +368,127 @@
        JAVASCRIPT
        ===================================================== -->
 
-  <!--
-    ETAPA DE TRANSICIÓN DE ARQUITECTURA
 
-    app.js continúa siendo el núcleo principal.
+  <!-- =====================================================
+       1. NÚCLEO ACTUAL DE SIGURE
+       =====================================================
 
-    Debe cargarse primero porque actualmente contiene:
-      - state
-      - $
-      - $$
-      - esc
-      - asBool
-      - showToast
-      - openModal
-      - closeModal
-      - apiCall
-      - renderView
-      - openUnit
-      - autenticación
-      - dashboard
-      - unidades
-      - administración
-      - resto de la aplicación
-  -->
+       app.js continúa siendo temporalmente el núcleo
+       principal de la aplicación.
+
+       Actualmente contiene:
+         - state
+         - $
+         - $$
+         - esc
+         - asBool
+         - showToast
+         - openModal
+         - closeModal
+         - apiCall
+         - renderView
+         - openUnit
+         - autenticación
+         - dashboard
+         - unidades
+         - administración
+         - resto de la aplicación
+
+       Por este motivo debe cargarse primero.
+       ===================================================== -->
 
   <script src="/app.js"></script>
 
 
-  <!--
-    MÓDULO DE STOCK
+  <!-- =====================================================
+       2. SHEETJS
+       =====================================================
 
-    Se carga después de app.js porque utiliza funciones
-    que todavía pertenecen al núcleo principal.
+       Librería local para lectura de archivos de planillas.
 
-    Incorpora:
-      - carga masiva
-      - consulta del stock actual
-      - lote
-      - vencimiento
-      - llamada a bulkAddStock
-  -->
+       Permitirá procesar:
+         - .xlsx
+         - .xls
+         - .csv
+
+       La librería se encuentra almacenada dentro del
+       propio proyecto:
+
+       /public/js/vendor/xlsx.full.min.js
+
+       No modifica datos por sí misma.
+       Únicamente permite interpretar los archivos
+       seleccionados por el usuario.
+       ===================================================== -->
+
+  <script src="/js/vendor/xlsx.full.min.js"></script>
+
+
+  <!-- =====================================================
+       3. MÓDULO DE STOCK
+       =====================================================
+
+       stock.js se carga después de app.js y SheetJS.
+
+       Esto permite que el módulo utilice:
+
+         - state
+         - apiCall()
+         - openModal()
+         - closeModal()
+         - showToast()
+         - renderView()
+         - openUnit()
+
+       y también:
+
+         - XLSX
+
+       para importar archivos Excel.
+
+       Este módulo será responsable de:
+
+         - consulta de stock
+         - carga manual masiva
+         - importación Excel
+         - importación CSV
+         - lotes
+         - vencimientos
+         - validación previa
+         - llamada a bulkAddStock
+       ===================================================== -->
 
   <script src="/js/stock.js"></script>
 
 
-  <!--
-    IMPORTANTE
+  <!-- =====================================================
+       API.JS - TODAVÍA NO ACTIVAR
+       =====================================================
 
-    api.js YA EXISTE en:
+       El archivo:
 
-      /public/js/api.js
+       /public/js/api.js
 
-    pero todavía NO se carga.
+       ya existe.
 
-    apiCall() continúa temporalmente dentro de app.js.
+       Sin embargo NO debe cargarse todavía porque
+       apiCall() continúa definido dentro de app.js.
 
-    En una etapa posterior migraremos apiCall() a api.js
-    y entonces agregaremos:
+       Si cargáramos ambos en esta etapa podríamos generar
+       una declaración duplicada.
 
-      <script src="/js/api.js"></script>
+       En una etapa posterior:
 
-    antes de app.js.
-  -->
+         1. eliminaremos apiCall() de app.js
+         2. activaremos api.js
+         3. cambiaremos el orden a:
+
+            /js/api.js
+            /app.js
+            /js/vendor/xlsx.full.min.js
+            /js/stock.js
+
+       ===================================================== -->
 
 
 </body>
